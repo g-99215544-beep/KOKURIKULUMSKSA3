@@ -6,7 +6,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
-  const LOGO_URL = "https://drive.google.com/uc?export=view&id=11PK2EV_nZ9pTUmvZenaQi26n0LBxCk3a"; 
+  const LOGO_URL = "https://i.imgur.com/KJX2gkw.jpeg"; 
 
   return (
     <div className="bg-black sticky top-0 z-50 border-b border-white/10 backdrop-blur-md transition-all duration-300">
