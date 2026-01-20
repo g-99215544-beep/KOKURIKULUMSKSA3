@@ -68,9 +68,29 @@ export interface WeeklyReportItem {
   fileUrl?: string;
 }
 
+export interface MeetingSchedule {
+  id?: string;
+  category: UnitCategory;
+  weekNumber: number;
+  meetingDate: string; // Format: YYYY-MM-DD
+  deadline: string; // Format: YYYY-MM-DD (date before which records must be submitted)
+  year: number;
+  createdAt?: number;
+}
+
+export interface ComplianceStatus {
+  unitId: string;
+  unitName: string;
+  weekNumber: number;
+  hasAttendance: boolean;
+  hasReport: boolean;
+  isCompliant: boolean;
+  deadline: string;
+}
+
 export interface AppState {
   currentTab: 'INTERNAL' | 'EXTERNAL';
-  view: 'HOME' | 'UNIT_DASHBOARD' | 'FORM_REPORT' | 'VIEW_ATTENDANCE' | 'FORM_ATTENDANCE' | 'VIEW_ORG' | 'VIEW_PLAN' | 'VIEW_GALLERY' | 'MANAGE_TEACHERS';
+  view: 'HOME' | 'UNIT_DASHBOARD' | 'FORM_REPORT' | 'VIEW_ATTENDANCE' | 'FORM_ATTENDANCE' | 'VIEW_ORG' | 'VIEW_PLAN' | 'VIEW_GALLERY' | 'MANAGE_TEACHERS' | 'MEETING_SCHEDULE';
   selectedYear: number;
   selectedUnit: Unit | null;
   user: User;

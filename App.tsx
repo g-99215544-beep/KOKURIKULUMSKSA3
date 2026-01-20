@@ -10,7 +10,8 @@ import { GalleryManager } from './modules/GalleryManager';
 import { OrgChartManager } from './modules/OrgChartManager';
 import { AnnualPlanManager } from './modules/AnnualPlanManager';
 import { AttendanceForm } from './modules/AttendanceForm';
-import { AttendanceList } from './modules/AttendanceList'; // New Import
+import { AttendanceList } from './modules/AttendanceList';
+import { MeetingScheduleManager } from './modules/MeetingScheduleManager';
 import { ExternalTab } from './modules/ExternalTab';
 import { AppState, UserRole } from './types';
 import { Button } from './components/ui/Button';
@@ -47,6 +48,7 @@ const App: React.FC = () => {
           'VIEW_ORG': 'UNIT_DASHBOARD',
           'VIEW_PLAN': 'UNIT_DASHBOARD',
           'UNIT_DASHBOARD': 'HOME',
+          'MEETING_SCHEDULE': 'HOME',
           'HOME': 'HOME'
         };
 
@@ -119,6 +121,20 @@ const App: React.FC = () => {
               <button onClick={() => handleTabChange('INTERNAL')} className={`flex-1 py-3 px-2 rounded-lg text-xs font-bold transition-all ${state.currentTab === 'INTERNAL' ? 'bg-red-50 text-red-700' : 'text-gray-400'}`}>UNIT KOKURIKULUM</button>
               <button onClick={() => handleTabChange('EXTERNAL')} className={`flex-1 py-3 px-2 rounded-lg text-xs font-bold transition-all ${state.currentTab === 'EXTERNAL' ? 'bg-red-50 text-red-700' : 'text-gray-400'}`}>PENCAPAIAN</button>
             </div>
+
+            {/* Admin Meeting Schedule Button */}
+            {state.user.role === UserRole.SUPER_ADMIN && state.currentTab === 'INTERNAL' && (
+              <button
+                onClick={() => setState(prev => ({ ...prev, view: 'MEETING_SCHEDULE' }))}
+                className="mb-4 bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-3 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 font-bold text-sm"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Urus Jadual Perjumpaan
+              </button>
+            )}
+
             <AnimatePresence mode="wait">
               <motion.div key={state.currentTab + state.selectedYear} initial="initial" animate="in" exit="out" variants={pageVariants} transition={{ duration: 0.2 }}>
                 {state.currentTab === 'INTERNAL' ? <UnitSelector selectedYear={state.selectedYear} onSelectUnit={u => setState(prev => ({ ...prev, selectedUnit: u, view: 'UNIT_DASHBOARD' }))} /> : <ExternalTab userRole={state.user.role} />}
@@ -129,8 +145,22 @@ const App: React.FC = () => {
       );
     }
 
+    // Meeting Schedule Manager (Admin only)
+    if (state.view === 'MEETING_SCHEDULE') {
+      return (
+        <AnimatePresence mode="wait">
+          <motion.div key={state.view} initial="initial" animate="in" exit="out" variants={pageVariants} transition={{ duration: 0.2 }}>
+            <MeetingScheduleManager
+              year={state.selectedYear}
+              onBack={() => setState(prev => ({ ...prev, view: 'HOME' }))}
+            />
+          </motion.div>
+        </AnimatePresence>
+      );
+    }
+
     // Guard clause for unit
-    if (!state.selectedUnit && state.view !== 'HOME') {
+    if (!state.selectedUnit && state.view !== 'HOME' && state.view !== 'MEETING_SCHEDULE') {
         setState(prev => ({ ...prev, view: 'HOME' }));
         return null;
     }
