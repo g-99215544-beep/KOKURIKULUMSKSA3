@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { Unit, UnitCategory, CATEGORY_LABELS } from '../types';
+import { Unit, UnitCategory, CATEGORY_LABELS, MeetingSchedule, ComplianceStatus } from '../types';
 import { gasService } from '../services/gasService';
+import { firebaseService } from '../services/firebaseService';
+import { complianceService } from '../services/complianceService';
 import { Card } from '../components/ui/Card';
 
 interface UnitSelectorProps {
@@ -13,6 +15,21 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
   const [selectedCategory, setSelectedCategory] = useState<UnitCategory | null>(null);
   const [units, setUnits] = useState<Unit[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [nonCompliantMap, setNonCompliantMap] = useState<Map<string, ComplianceStatus[]>>(new Map());
+  const [schedules, setSchedules] = useState<MeetingSchedule[]>([]);
+
+  // Load meeting schedules
+  useEffect(() => {
+    const loadSchedules = async () => {
+      try {
+        const data = await firebaseService.getMeetingSchedules(selectedYear);
+        setSchedules(data);
+      } catch (e) {
+        console.error("Failed to load schedules:", e);
+      }
+    };
+    loadSchedules();
+  }, [selectedYear]);
 
   useEffect(() => {
     if (selectedCategory) {
@@ -21,6 +38,12 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
         try {
           const data = await gasService.getUnitsByCategory(selectedCategory);
           setUnits(data);
+
+          // Check compliance for all units
+          if (data.length > 0 && schedules.length > 0) {
+            const complianceMap = await complianceService.getNonCompliantUnits(data, schedules);
+            setNonCompliantMap(complianceMap);
+          }
         } catch (error) {
           console.error("Failed to load units", error);
         } finally {
@@ -29,7 +52,7 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
       };
       fetchUnits();
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, schedules]);
 
   const getCategoryIconSvg = (cat: UnitCategory) => {
     switch (cat) {
@@ -167,38 +190,62 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {units.map((unit) => (
-            <Card 
-              key={unit.id} 
-              hoverable 
-              onClick={() => onSelectUnit(unit)}
-              className="group !p-5 border-l-4 !border-l-transparent hover:!border-l-red-600"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-md border border-gray-100 group-hover:scale-110 transition-transform duration-300 bg-white overflow-hidden p-1`}>
-                    {unit.logoUrl ? (
-                        <img src={unit.logoUrl} alt={unit.name} className="w-full h-full object-contain" />
-                    ) : (
-                        <span className="font-extrabold text-xl text-gray-600">{unit.name.charAt(0)}</span>
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-gray-800 text-base group-hover:text-red-700 transition-colors line-clamp-1">
-                      {unit.name}
-                    </h4>
-                    <div className="flex items-center mt-1">
-                      <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
-                      <p className="text-xs text-gray-500 font-medium">Aktif 2026</p>
+          {units.map((unit) => {
+            const nonCompliantWeeks = nonCompliantMap.get(unit.id);
+            const badgeCount = nonCompliantWeeks ? complianceService.countNonCompliantWeeks(nonCompliantWeeks) : 0;
+
+            return (
+              <Card
+                key={unit.id}
+                hoverable
+                onClick={() => onSelectUnit(unit)}
+                className="group !p-5 border-l-4 !border-l-transparent hover:!border-l-red-600"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="relative">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-md border border-gray-100 group-hover:scale-110 transition-transform duration-300 bg-white overflow-hidden p-1`}>
+                        {unit.logoUrl ? (
+                          <img src={unit.logoUrl} alt={unit.name} className="w-full h-full object-contain" />
+                        ) : (
+                          <span className="font-extrabold text-xl text-gray-600">{unit.name.charAt(0)}</span>
+                        )}
+                      </div>
+                      {/* Notification Badge */}
+                      {badgeCount > 0 && (
+                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg border-2 border-white animate-pulse">
+                          {badgeCount}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-800 text-base group-hover:text-red-700 transition-colors line-clamp-1">
+                        {unit.name}
+                      </h4>
+                      <div className="flex items-center mt-1">
+                        {badgeCount > 0 ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span>
+                            <p className="text-xs text-red-600 font-bold">
+                              {badgeCount} rekod belum lengkap
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
+                            <p className="text-xs text-gray-500 font-medium">Aktif {selectedYear}</p>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
+                  <svg className="w-5 h-5 text-gray-300 group-hover:text-red-500 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
                 </div>
-                <svg className="w-5 h-5 text-gray-300 group-hover:text-red-500 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
           {units.length === 0 && (
             <div className="col-span-full text-center py-12 text-gray-500 bg-white border border-dashed border-gray-300 rounded-xl">
               <span className="text-4xl block mb-2">📭</span>

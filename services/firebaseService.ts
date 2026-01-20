@@ -1,6 +1,7 @@
 
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, push, set, serverTimestamp, query, orderByChild, equalTo, get } from "firebase/database";
+import { getDatabase, ref, push, set, serverTimestamp, query, orderByChild, equalTo, get, remove } from "firebase/database";
+import { MeetingSchedule } from '../types';
 
 // Konfigurasi ini BETUL untuk projek anda
 const firebaseConfig = {
@@ -63,14 +64,14 @@ export const firebaseService = {
     try {
       const dbRef = ref(db, 'kehadiran_murid');
       const snapshot = await get(dbRef);
-      
+
       if (snapshot.exists()) {
         const data = snapshot.val();
         const records: AttendanceRecord[] = Object.keys(data).map(key => ({
           id: key,
           ...data[key]
         }));
-        
+
         // Tapis ikut nama unit (case insensitive & buang whitespace)
         return records
           .filter(r => r.unitName && r.unitName.toLowerCase().trim() === unitName.toLowerCase().trim())
@@ -80,6 +81,58 @@ export const firebaseService = {
     } catch (e) {
       console.error("Gagal mengambil data kehadiran:", e);
       return [];
+    }
+  },
+
+  // Meeting Schedule Functions
+  saveMeetingSchedule: async (schedule: MeetingSchedule) => {
+    try {
+      const scheduleRef = ref(db, 'meeting_schedules');
+      const newScheduleRef = push(scheduleRef);
+      await set(newScheduleRef, {
+        ...schedule,
+        createdAt: Date.now()
+      });
+      console.log("Jadual perjumpaan disimpan:", newScheduleRef.key);
+      return { success: true, id: newScheduleRef.key };
+    } catch (e) {
+      console.error("Gagal simpan jadual:", e);
+      throw e;
+    }
+  },
+
+  getMeetingSchedules: async (year: number): Promise<MeetingSchedule[]> => {
+    try {
+      const dbRef = ref(db, 'meeting_schedules');
+      const snapshot = await get(dbRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const schedules: MeetingSchedule[] = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+
+        return schedules
+          .filter(s => s.year === year)
+          .sort((a, b) => new Date(a.meetingDate).getTime() - new Date(b.meetingDate).getTime());
+      }
+      return [];
+    } catch (e) {
+      console.error("Gagal ambil jadual:", e);
+      return [];
+    }
+  },
+
+  deleteMeetingSchedule: async (scheduleId: string) => {
+    try {
+      const scheduleRef = ref(db, `meeting_schedules/${scheduleId}`);
+      await remove(scheduleRef);
+      console.log("Jadual dipadam:", scheduleId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal padam jadual:", e);
+      throw e;
     }
   }
 };
