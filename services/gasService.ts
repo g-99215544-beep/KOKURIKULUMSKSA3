@@ -4,13 +4,13 @@ import { Unit, UnitCategory, WeeklyReportItem, GalleryItem } from '../types';
 /**
  * URL Web App daripada Google Apps Script
  */
-const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzFJ_MVxsuue23cudYYS9aSsgGT-4mo-3iuCq4YsYb77MWv8Rr7_LljFqUl6s9P5f4mpw/exec';
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzaKmQW1aypKqp5ydvtFT70buuLlKnV8uxEqsYcs66GESotvH34Yn6S6Z1NKnlyQ7I/exec';
 
 /**
  * ID FOLDER GOOGLE DRIVE (KOKURIKULUM 2)
  * ID ini kini dihantar ke backend, memudahkan penukaran folder tanpa perlu edit skrip.
  */
-const ROOT_FOLDER_ID = '1vGg70eSshHFNwXpRCTBrwf83p-BvMeO0';
+const ROOT_FOLDER_ID = '1JUDAuXuCtTas645sh2MkPejG0tAMHyxB';
 
 // Caching Persistent (LocalStorage)
 const CACHE_KEY = 'SKSA_REPORTS_CACHE_V6'; 
