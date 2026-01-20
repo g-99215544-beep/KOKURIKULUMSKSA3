@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Header } from './components/Header';
 import { UnitSelector } from './modules/UnitSelector';
@@ -27,6 +27,56 @@ const App: React.FC = () => {
 
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
+
+  // Browser back button handling
+  useEffect(() => {
+    // Push initial state
+    window.history.pushState({ view: state.view }, '');
+
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state && event.state.view) {
+        const targetView = event.state.view;
+
+        // Define navigation hierarchy
+        const viewHierarchy: Record<string, string> = {
+          'FORM_ATTENDANCE': 'VIEW_ATTENDANCE',
+          'VIEW_ATTENDANCE': 'UNIT_DASHBOARD',
+          'VIEW_GALLERY': 'UNIT_DASHBOARD',
+          'FORM_REPORT': 'UNIT_DASHBOARD',
+          'MANAGE_TEACHERS': 'UNIT_DASHBOARD',
+          'VIEW_ORG': 'UNIT_DASHBOARD',
+          'VIEW_PLAN': 'UNIT_DASHBOARD',
+          'UNIT_DASHBOARD': 'HOME',
+          'HOME': 'HOME'
+        };
+
+        const previousView = viewHierarchy[state.view] || 'HOME';
+
+        setState(prev => ({
+          ...prev,
+          view: previousView as any,
+          selectedUnit: previousView === 'HOME' ? null : prev.selectedUnit
+        }));
+      } else {
+        // Prevent exit, go to home
+        setState(prev => ({ ...prev, view: 'HOME', selectedUnit: null }));
+        window.history.pushState({ view: 'HOME' }, '');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [state.view]);
+
+  // Push state when view changes
+  useEffect(() => {
+    if (state.view !== 'HOME') {
+      window.history.pushState({ view: state.view }, '');
+    }
+  }, [state.view]);
 
   const pageVariants = {
     initial: { opacity: 0, x: 10 },
