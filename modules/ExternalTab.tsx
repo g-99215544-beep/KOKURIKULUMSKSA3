@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Achievement, UserRole } from '../types';
 import { Button } from '../components/ui/Button';
 import { Input, Textarea } from '../components/ui/Input';
+import { firebaseService } from '../services/firebaseService';
 
 interface ExternalTabProps {
   userRole?: UserRole;
@@ -55,14 +56,42 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
 
 export const ExternalTab: React.FC<ExternalTabProps> = ({ userRole }) => {
   const [showReportModal, setShowReportModal] = useState(false);
-  const [achievements, setAchievements] = useState<Achievement[]>(INITIAL_ACHIEVEMENTS);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);
-  
+  const [isLoading, setIsLoading] = useState(true);
+
   // Admin State
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<Achievement>>({});
 
   const isAdmin = userRole === UserRole.SUPER_ADMIN;
+
+  // Load achievements from Firebase
+  useEffect(() => {
+    loadAchievements();
+  }, []);
+
+  const loadAchievements = async () => {
+    setIsLoading(true);
+    try {
+      const data = await firebaseService.getAchievements();
+      // If no data in Firebase, use initial mock data
+      if (data.length === 0) {
+        setAchievements(INITIAL_ACHIEVEMENTS);
+        // Optionally migrate initial data to Firebase
+        if (isAdmin) {
+          console.log("No achievements found, consider migrating initial data");
+        }
+      } else {
+        setAchievements(data);
+      }
+    } catch (e) {
+      console.error("Failed to load achievements:", e);
+      setAchievements(INITIAL_ACHIEVEMENTS); // Fallback to mock data
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleOpenEdit = (achievement?: Achievement) => {
     if (achievement) {
@@ -81,24 +110,31 @@ export const ExternalTab: React.FC<ExternalTabProps> = ({ userRole }) => {
     setIsEditing(true);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number | string) => {
     if (confirm("Adakah anda pasti ingin memadam pencapaian ini?")) {
-      setAchievements(prev => prev.filter(a => a.id !== id));
-      setSelectedAchievement(null);
+      try {
+        await firebaseService.deleteAchievement(id);
+        setAchievements(prev => prev.filter(a => a.id !== id));
+        setSelectedAchievement(null);
+        alert("✅ Pencapaian berjaya dipadam!");
+      } catch (e: any) {
+        alert("❌ Gagal padam: " + e.message);
+        console.error("Delete failed:", e);
+      }
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.id) {
-      // Update
-      setAchievements(prev => prev.map(a => a.id === formData.id ? { ...a, ...formData } as Achievement : a));
-    } else {
-      // Create
-      const newId = Math.max(...achievements.map(a => a.id)) + 1;
-      setAchievements(prev => [{ ...formData, id: newId } as Achievement, ...prev]);
+    try {
+      await firebaseService.saveAchievement(formData as Achievement);
+      await loadAchievements(); // Reload from Firebase
+      setIsEditing(false);
+      alert("✅ Pencapaian berjaya disimpan!");
+    } catch (e: any) {
+      alert("❌ Gagal simpan: " + e.message);
+      console.error("Save failed:", e);
     }
-    setIsEditing(false);
   };
 
   return (
@@ -123,7 +159,20 @@ export const ExternalTab: React.FC<ExternalTabProps> = ({ userRole }) => {
 
        {/* List Content */}
        <div className="animate-fadeIn pb-24">
-          {/* Reduced gap-4 to gap-3 for mobile */}
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="animate-spin rounded-full h-10 w-10 border-4 border-red-100 border-t-red-600 mb-4"></div>
+              <p className="text-xs text-gray-400 font-bold uppercase tracking-widest animate-pulse">Memuatkan Pencapaian...</p>
+            </div>
+          ) : achievements.length === 0 ? (
+            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-300">
+              <div className="text-5xl mb-4">🏆</div>
+              <p className="text-gray-500 font-bold">Tiada pencapaian dijumpai.</p>
+              {isAdmin && (
+                <p className="text-xs text-gray-400 mt-2">Klik butang "+ Rekod Manual" untuk tambah</p>
+              )}
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             {achievements.map(item => (
               <Card 
@@ -166,6 +215,7 @@ export const ExternalTab: React.FC<ExternalTabProps> = ({ userRole }) => {
               </Card>
             ))}
           </div>
+          )}
        </div>
 
        {/* FLOATING ACTION BUTTON (FAB) FOR REPORT */}

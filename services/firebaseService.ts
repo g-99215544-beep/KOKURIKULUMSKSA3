@@ -1,7 +1,8 @@
 
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, push, set, serverTimestamp, query, orderByChild, equalTo, get, remove } from "firebase/database";
+import { getDatabase, ref, push, set, serverTimestamp, query, orderByChild, equalTo, get, remove, update } from "firebase/database";
 import { MeetingSchedule } from '../types';
+import type { Achievement } from '../types';
 
 // Konfigurasi ini BETUL untuk projek anda
 const firebaseConfig = {
@@ -132,6 +133,67 @@ export const firebaseService = {
       return { success: true };
     } catch (e) {
       console.error("Gagal padam jadual:", e);
+      throw e;
+    }
+  },
+
+  // Achievement/Hall of Fame Functions
+  saveAchievement: async (achievement: Omit<Achievement, 'id'> | Achievement) => {
+    try {
+      if ('id' in achievement && achievement.id) {
+        // Update existing
+        const achievementRef = ref(db, `achievements/${achievement.id}`);
+        await update(achievementRef, achievement);
+        console.log("Achievement updated:", achievement.id);
+        return { success: true, id: achievement.id };
+      } else {
+        // Create new
+        const achievementsRef = ref(db, 'achievements');
+        const newAchievementRef = push(achievementsRef);
+        const newId = newAchievementRef.key!;
+        await set(newAchievementRef, {
+          ...achievement,
+          id: newId,
+          createdAt: Date.now()
+        });
+        console.log("Achievement created:", newId);
+        return { success: true, id: newId };
+      }
+    } catch (e) {
+      console.error("Failed to save achievement:", e);
+      throw e;
+    }
+  },
+
+  getAchievements: async (): Promise<Achievement[]> => {
+    try {
+      const dbRef = ref(db, 'achievements');
+      const snapshot = await get(dbRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const achievements: Achievement[] = Object.keys(data).map(key => ({
+          ...data[key],
+          id: data[key].id || key
+        }));
+
+        return achievements.sort((a, b) => b.year - a.year);
+      }
+      return [];
+    } catch (e) {
+      console.error("Failed to fetch achievements:", e);
+      return [];
+    }
+  },
+
+  deleteAchievement: async (achievementId: string | number) => {
+    try {
+      const achievementRef = ref(db, `achievements/${achievementId}`);
+      await remove(achievementRef);
+      console.log("Achievement deleted:", achievementId);
+      return { success: true };
+    } catch (e) {
+      console.error("Failed to delete achievement:", e);
       throw e;
     }
   }
