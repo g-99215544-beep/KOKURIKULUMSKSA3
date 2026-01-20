@@ -6,22 +6,22 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
-  const LOGO_URL = "https://i.imgur.com/KJX2gkw.jpeg"; 
+  const LOGO_URL = "https://i.imgur.com/KJX2gkw.jpeg";
 
   return (
     <div className="bg-black sticky top-0 z-50 border-b border-white/10 backdrop-blur-md transition-all duration-300">
       <div className="max-w-5xl mx-auto px-4 py-3">
         <div className="flex items-center gap-3 md:gap-4">
-          <div 
+          <div
             onClick={onLogoClick}
-            className="group w-12 h-12 md:w-14 md:h-14 shrink-0 bg-white rounded-xl p-1 border border-white/20 flex items-center justify-center overflow-hidden cursor-pointer hover:scale-105 active:scale-95 transition-all duration-300 relative"
+            className="group w-24 h-24 md:w-28 md:h-28 shrink-0 bg-white rounded-full p-1 border-2 border-white/30 flex items-center justify-center overflow-hidden cursor-pointer hover:scale-105 active:scale-95 transition-all duration-300 relative shadow-lg"
             title="Klik untuk Log Masuk Admin"
           >
-            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-            <img 
-              src={LOGO_URL} 
-              alt="Logo SK Sri Aman" 
-              className="w-full h-full object-contain relative z-10"
+            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-full"></div>
+            <img
+              src={LOGO_URL}
+              alt="Logo SK Sri Aman"
+              className="w-full h-full object-cover relative z-10 rounded-full"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = 'https://cdn-icons-png.flaticon.com/512/2997/2997322.png';
               }}
