@@ -245,19 +245,24 @@ export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBa
                                 {isAllAbsent ? 'NYAH-TANDA SEMUA' : 'TANDA SEMUA TIDAK HADIR'}
                             </div>
                         </div>
-                        <div className="divide-y divide-gray-100">
+                        <div className="divide-y divide-white/50">
                             {students.map((student, idx) => {
                                 const isAbsent = checkedStudents[className]?.has(student);
                                 return (
-                                    <label key={idx} className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all ${isAbsent ? 'bg-red-50' : 'hover:bg-gray-50'}`}>
-                                        <div className={`w-5 h-5 rounded flex-shrink-0 border flex items-center justify-center transition-all ${isAbsent ? 'bg-red-600 border-red-600 text-white' : 'border-gray-300 bg-white'}`}>
-                                            {isAbsent && <span className="text-xs font-bold">✕</span>}
+                                    <label 
+                                        key={idx} 
+                                        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all border-b border-gray-100 last:border-0 
+                                            ${isAbsent ? 'bg-red-100 hover:bg-red-200' : 'bg-green-100 hover:bg-green-200'}`
+                                        }
+                                    >
+                                        <div className={`w-6 h-6 rounded-full flex-shrink-0 border-2 flex items-center justify-center transition-all shadow-sm ${isAbsent ? 'bg-white border-red-500 text-red-500' : 'bg-white border-green-500 text-green-500'}`}>
+                                            {isAbsent ? <span className="text-sm font-bold">✕</span> : <span className="text-sm font-bold">✓</span>}
                                         </div>
                                         <input type="checkbox" className="hidden" checked={isAbsent} onChange={() => toggleStudent(className, student)} />
                                         <div className="flex-1">
-                                             <span className={`text-xs font-bold uppercase ${isAbsent ? 'text-red-700' : 'text-gray-700'}`}>{student}</span>
+                                             <span className={`text-xs font-black uppercase ${isAbsent ? 'text-red-900' : 'text-green-900'}`}>{student}</span>
                                         </div>
-                                        <div className={`text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${isAbsent ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                        <div className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-sm ${isAbsent ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
                                             {isAbsent ? 'TIDAK HADIR' : 'HADIR'}
                                         </div>
                                     </label>
