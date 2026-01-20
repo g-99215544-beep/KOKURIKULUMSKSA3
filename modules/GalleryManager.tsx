@@ -37,45 +37,74 @@ export const GalleryManager: React.FC<GalleryManagerProps> = ({ unit, year, user
     setIsLoading(true);
     try {
       const data = await gasService.getUnitGallery(unit.name, year);
+      console.log('Gallery data received:', data);
       setImages(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Gagal memuatkan imej:", err);
       setImages([]);
-    } finally { 
-      setIsLoading(false); 
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Helper untuk extract file ID dari URL Google Drive
+  const getFileIdFromUrl = (url: string): string | null => {
+    try {
+      let id = '';
+      // Corak 1: /file/d/ID/view atau /file/d/ID
+      if (url.includes('/file/d/')) {
+        const parts = url.split('/file/d/');
+        if (parts.length > 1) {
+          id = parts[1].split('/')[0].split('?')[0];
+        }
+      }
+      // Corak 2: id=ID
+      else if (url.includes('id=')) {
+        const parts = url.split('id=');
+        if (parts.length > 1) {
+          id = parts[1].split('&')[0];
+        }
+      }
+      // Corak 3: /d/ID/ (format lain)
+      else if (url.includes('/d/')) {
+        const parts = url.split('/d/');
+        if (parts.length > 1) {
+          id = parts[1].split('/')[0].split('?')[0];
+        }
+      }
+      return id || null;
+    } catch (e) {
+      return null;
     }
   };
 
   // Helper untuk menukar URL Google Drive kepada URL Imej Terus
   const getDirectImageUrl = (url: string) => {
     try {
-        let id = '';
-        // Corak 1: /file/d/ID/view
-        if (url.includes('/file/d/')) {
-            const parts = url.split('/file/d/');
-            if (parts.length > 1) id = parts[1].split('/')[0];
-        } 
-        // Corak 2: id=ID
-        else if (url.includes('id=')) {
-            const parts = url.split('id=');
-            if (parts.length > 1) id = parts[1].split('&')[0];
+        // Jika sudah format thumbnail atau uc, return sahaja
+        if (url.includes('drive.google.com/thumbnail') || url.includes('drive.google.com/uc')) {
+            return url;
         }
 
+        const id = getFileIdFromUrl(url);
+
         if (id) {
-            // Gunakan endpoint thumbnail Google Drive (lebih laju & stabil untuk <img> tag)
-            // sz=s800 bermaksud saiz maksimum 800px
-            return `https://drive.google.com/thumbnail?id=${id}&sz=s800`;
+            console.log('Converting Drive URL:', url, '-> ID:', id);
+            // Gunakan endpoint uc yang lebih reliable untuk paparan
+            return `https://drive.google.com/uc?export=view&id=${id}`;
         }
+
+        console.warn('Could not extract ID from URL:', url);
         return url;
     } catch (e) {
+        console.error('Error converting URL:', e, url);
         return url;
     }
   };
 
   const getHighResUrl = (url: string) => {
-     // Untuk paparan penuh, minta saiz lebih besar (s2000)
-     const direct = getDirectImageUrl(url);
-     return direct.replace('sz=s800', 'sz=s2000');
+     // Untuk paparan penuh, gunakan URL yang sama (sudah high-res)
+     return getDirectImageUrl(url);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,13 +206,23 @@ export const GalleryManager: React.FC<GalleryManagerProps> = ({ unit, year, user
             <div key={img.id} className="group relative cursor-pointer" onClick={() => setViewImage(img.url)}>
                 <div className="bg-white p-3 rounded-2xl shadow-md hover:shadow-2xl transition-all duration-300 transform group-hover:-translate-y-1 border border-gray-100 h-full relative">
                     <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-gray-100 relative">
-                        <img 
-                            src={getDirectImageUrl(img.url)} 
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                            alt="Aktiviti" 
+                        <img
+                            src={getDirectImageUrl(img.url)}
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            alt={img.name || "Aktiviti"}
                             loading="lazy"
                             onError={(e) => {
-                                (e.target as HTMLImageElement).src = 'https://placehold.co/600x400/f3f4f6/9ca3af?text=Tiada+Pratonton';
+                                const target = e.target as HTMLImageElement;
+                                console.error('Image load failed for:', img.url, 'Converted to:', getDirectImageUrl(img.url));
+                                // Try alternative: if first load fails, try direct view link
+                                if (!target.src.includes('placehold.co')) {
+                                    const fileId = getFileIdFromUrl(img.url);
+                                    if (fileId && !target.src.includes('export=download')) {
+                                        target.src = `https://drive.google.com/uc?export=download&id=${fileId}`;
+                                    } else {
+                                        target.src = 'https://placehold.co/600x400/fee2e2/dc2626?text=Gagal+Memuatkan+Gambar';
+                                    }
+                                }
                             }}
                         />
                         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
