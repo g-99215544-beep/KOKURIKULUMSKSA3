@@ -48,11 +48,27 @@ export interface GalleryItem {
 
 // Data for submitting form
 export interface WeeklyReportData {
+  id?: string;
   unitId: string;
-  date: string;
-  activity: string;
-  attendanceCount: number;
-  notes: string;
+  unitName: string;
+  unitCategory: string;
+  year: number;
+  perjumpaanKali: string;
+  tarikh: string;
+  hari: string;
+  masa: string;
+  tempat: string;
+  muridHadir: string;
+  jumlahMurid: string;
+  selectedTeachers: string[];
+  aktiviti1: string;
+  aktiviti2: string;
+  aktiviti3: string;
+  pikebm: string;
+  refleksi: string;
+  imageUrls?: string[]; // URLs of images in cloud storage
+  pdfUrl?: string; // URL of generated PDF
+  timestamp?: any;
 }
 
 // Data for viewing list

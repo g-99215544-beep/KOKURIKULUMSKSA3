@@ -1,7 +1,7 @@
 
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, push, set, serverTimestamp, query, orderByChild, equalTo, get, remove, update } from "firebase/database";
-import { MeetingSchedule } from '../types';
+import { MeetingSchedule, WeeklyReportData } from '../types';
 import type { Achievement } from '../types';
 
 // Konfigurasi ini BETUL untuk projek anda
@@ -82,6 +82,78 @@ export const firebaseService = {
     } catch (e) {
       console.error("Gagal mengambil data kehadiran:", e);
       return [];
+    }
+  },
+
+  // Weekly Report Functions
+  submitWeeklyReport: async (report: WeeklyReportData) => {
+    try {
+      // Simpan ke node 'laporan_mingguan'
+      const reportRef = ref(db, 'laporan_mingguan');
+      const newReportRef = push(reportRef);
+      await set(newReportRef, {
+        ...report,
+        timestamp: serverTimestamp()
+      });
+      console.log("Laporan mingguan berjaya disimpan ke Firebase:", newReportRef.key);
+      return { success: true, id: newReportRef.key };
+    } catch (e) {
+      console.error("Ralat Firebase simpan laporan:", e);
+      throw e;
+    }
+  },
+
+  getWeeklyReportsByUnit: async (unitName: string, year?: number): Promise<WeeklyReportData[]> => {
+    try {
+      const dbRef = ref(db, 'laporan_mingguan');
+      const snapshot = await get(dbRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const reports: WeeklyReportData[] = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+
+        // Tapis ikut nama unit dan tahun (jika diberi)
+        let filtered = reports.filter(r =>
+          r.unitName && r.unitName.toLowerCase().trim() === unitName.toLowerCase().trim()
+        );
+
+        if (year) {
+          filtered = filtered.filter(r => r.year === year);
+        }
+
+        return filtered.sort((a, b) => new Date(b.tarikh).getTime() - new Date(a.tarikh).getTime());
+      }
+      return [];
+    } catch (e) {
+      console.error("Gagal mengambil laporan mingguan:", e);
+      return [];
+    }
+  },
+
+  updateWeeklyReportPdfUrl: async (reportId: string, pdfUrl: string) => {
+    try {
+      const reportRef = ref(db, `laporan_mingguan/${reportId}`);
+      await update(reportRef, { pdfUrl });
+      console.log("PDF URL dikemaskini untuk laporan:", reportId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal kemaskini PDF URL:", e);
+      throw e;
+    }
+  },
+
+  deleteWeeklyReport: async (reportId: string) => {
+    try {
+      const reportRef = ref(db, `laporan_mingguan/${reportId}`);
+      await remove(reportRef);
+      console.log("Laporan dipadam dari Firebase:", reportId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal padam laporan:", e);
+      throw e;
     }
   },
 
