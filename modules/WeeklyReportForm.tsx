@@ -22,20 +22,29 @@ interface WeeklyReportFormProps {
 
 export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, onBack }) => {
   const [reports, setReports] = useState<WeeklyReportItem[]>([]);
+  const [firebaseReports, setFirebaseReports] = useState<WeeklyReportData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
+
   // PDF Viewer State
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
 
   // Delete State
   const [fileToDelete, setFileToDelete] = useState<string | null>(null);
+  const [firebaseReportToDelete, setFirebaseReportToDelete] = useState<string | null>(null);
 
   // State Borang Baru
   const [showFormModal, setShowFormModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingText, setLoadingText] = useState('');
+
+  // Edit Mode State
+  const [editingReport, setEditingReport] = useState<WeeklyReportData | null>(null);
+  const [showEditPasswordModal, setShowEditPasswordModal] = useState(false);
+  const [editPassword, setEditPassword] = useState('');
+  const [editPasswordError, setEditPasswordError] = useState('');
+  const [pendingEditReport, setPendingEditReport] = useState<WeeklyReportData | null>(null);
 
   // Form Data State
   const [formData, setFormData] = useState({
@@ -57,13 +66,20 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
   const [reportImages, setReportImages] = useState<(File | null)[]>([null, null, null, null]);
   const [imagePreviews, setImagePreviews] = useState<string[]>(['', '', '', '']);
 
-  // Fetch Reports Logic
+  const isEditMode = !!editingReport;
+
+  // Fetch Reports Logic - from both Google Drive and Firebase
   const fetchReports = async (force: boolean = false) => {
     if (force) setIsRefreshing(true);
     try {
-      const data = await gasService.getWeeklyReports(unit.name, year, force);
-      const matchedData = data.filter(r => r.year === year);
+      // Fetch from Google Drive (PDFs)
+      const driveData = await gasService.getWeeklyReports(unit.name, year, force);
+      const matchedData = driveData.filter(r => r.year === year);
       setReports(matchedData);
+
+      // Fetch from Firebase (actual data for editing)
+      const fbData = await firebaseService.getWeeklyReportsByUnit(unit.name, year);
+      setFirebaseReports(fbData);
     } catch (error) {
       console.error("Failed to load reports", error);
     } finally {
@@ -74,6 +90,7 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
 
   useEffect(() => {
     setReports([]);
+    setFirebaseReports([]);
     setIsLoading(true);
     fetchReports();
     // Auto-select all teachers initially
@@ -83,9 +100,9 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
   // Helper function to get localStorage key for this unit
   const getDraftKey = () => `${DRAFT_KEY_PREFIX}${unit.id}_${year}`;
 
-  // Load draft from localStorage when form opens
+  // Load draft from localStorage when form opens (only for new reports)
   useEffect(() => {
-    if (showFormModal) {
+    if (showFormModal && !editingReport) {
       const draftKey = getDraftKey();
       const savedDraft = localStorage.getItem(draftKey);
       if (savedDraft) {
@@ -93,7 +110,6 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
           const draft = JSON.parse(savedDraft);
           setFormData(draft.formData || formData);
           setSelectedTeachers(draft.selectedTeachers || unit.teachers || []);
-          // Note: Images cannot be restored from localStorage due to file object limitations
           console.log("✅ Draf dimuat semula dari cache");
         } catch (e) {
           console.error("Gagal muat draf:", e);
@@ -102,9 +118,9 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
     }
   }, [showFormModal]);
 
-  // Auto-save draft to localStorage when user types
+  // Auto-save draft to localStorage when user types (only for new reports)
   useEffect(() => {
-    if (showFormModal) {
+    if (showFormModal && !editingReport) {
       const draftKey = getDraftKey();
       const draftData = {
         formData,
@@ -122,17 +138,91 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
     console.log("🗑️ Draf dipadam dari cache");
   };
 
+  // Reset form to initial state
+  const resetForm = () => {
+    setFormData({
+      perjumpaanKali: '', tarikh: '', hari: '', masa: '1.10 - 2.10 petang', tempat: '',
+      muridHadir: '', jumlahMurid: '', aktiviti1: '', aktiviti2: '', aktiviti3: '', pikebm: '', refleksi: ''
+    });
+    setImagePreviews(['', '', '', '']);
+    setReportImages([null, null, null, null]);
+    setSelectedTeachers(unit.teachers || []);
+    setEditingReport(null);
+  };
+
+  // Handle Edit Password Confirmation
+  const handleEditPasswordConfirm = () => {
+    const isValidPassword =
+      editPassword.trim().toUpperCase() === (unit.password || '').toUpperCase() ||
+      editPassword === 'admin';
+
+    if (!isValidPassword) {
+      setEditPasswordError('Kata laluan salah!');
+      return;
+    }
+
+    // Password valid, proceed to edit
+    if (pendingEditReport) {
+      setEditingReport(pendingEditReport);
+      // Pre-fill form data
+      setFormData({
+        perjumpaanKali: pendingEditReport.perjumpaanKali || '',
+        tarikh: pendingEditReport.tarikh || '',
+        hari: pendingEditReport.hari || '',
+        masa: pendingEditReport.masa || '1.10 - 2.10 petang',
+        tempat: pendingEditReport.tempat || '',
+        muridHadir: pendingEditReport.muridHadir || '',
+        jumlahMurid: pendingEditReport.jumlahMurid || '',
+        aktiviti1: pendingEditReport.aktiviti1 || '',
+        aktiviti2: pendingEditReport.aktiviti2 || '',
+        aktiviti3: pendingEditReport.aktiviti3 || '',
+        pikebm: pendingEditReport.pikebm || '',
+        refleksi: pendingEditReport.refleksi || ''
+      });
+      setSelectedTeachers(pendingEditReport.selectedTeachers || unit.teachers || []);
+      // Load existing image previews if available
+      if (pendingEditReport.imageUrls && pendingEditReport.imageUrls.length > 0) {
+        const previews = [...imagePreviews];
+        pendingEditReport.imageUrls.forEach((url, idx) => {
+          if (idx < 4) previews[idx] = url;
+        });
+        setImagePreviews(previews);
+      }
+      setShowFormModal(true);
+    }
+
+    setShowEditPasswordModal(false);
+    setEditPassword('');
+    setEditPasswordError('');
+    setPendingEditReport(null);
+  };
+
+  // Handle requesting edit (show password modal first)
+  const handleRequestEdit = (report: WeeklyReportData) => {
+    setPendingEditReport(report);
+    setShowEditPasswordModal(true);
+  };
+
   // Handle Deletion
   const handleDeleteConfirm = async () => {
     if (fileToDelete) {
-        try {
-            await gasService.deleteFile(fileToDelete, unit.name, year, 'LAPORAN MINGGUAN');
-            alert("✅ Fail berjaya dipadam.");
-            fetchReports(true);
-        } catch (e: any) {
-            alert("❌ Gagal memadam fail: " + e.message);
+      try {
+        // Delete from Google Drive
+        await gasService.deleteFile(fileToDelete, unit.name, year, 'LAPORAN MINGGUAN');
+
+        // Also delete from Firebase if we have the corresponding record
+        if (firebaseReportToDelete) {
+          await firebaseService.deleteWeeklyReport(firebaseReportToDelete);
         }
+
+        alert("✅ Laporan berjaya dipadam.");
+        fetchReports(true);
+      } catch (e: any) {
+        alert("❌ Gagal memadam fail: " + e.message);
+      }
     }
+    setFileToDelete(null);
+    setFirebaseReportToDelete(null);
   };
 
   // Form Handlers
@@ -145,8 +235,8 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
   };
 
   const handleTeacherToggle = (teacherName: string) => {
-    setSelectedTeachers(prev => 
-      prev.includes(teacherName) 
+    setSelectedTeachers(prev =>
+      prev.includes(teacherName)
         ? prev.filter(t => t !== teacherName)
         : [...prev, teacherName]
     );
@@ -155,7 +245,7 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
   const handleImageChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      
+
       // Update File State
       const newFiles = [...reportImages];
       newFiles[index] = file;
@@ -187,10 +277,19 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
 
      const imgData = await Promise.all(reportImages.map(getBase64));
 
+     // Use existing image URLs if no new files uploaded (for edit mode)
+     const finalImgData = imgData.map((data, idx) => {
+       if (data) return data;
+       if (editingReport?.imageUrls && editingReport.imageUrls[idx]) {
+         return editingReport.imageUrls[idx];
+       }
+       return '';
+     });
+
      // HTML Template String for PDF
      const content = `
       <div style="font-family: Arial, sans-serif; padding: 40px; color: #333; max-width: 800px; margin: 0 auto;">
-        
+
         <!-- Header -->
         <div style="text-align: center; border-bottom: 3px solid #b91c1c; padding-bottom: 20px; margin-bottom: 30px;">
           <h1 style="margin: 0; font-size: 24px; color: #b91c1c; text-transform: uppercase;">Laporan Mingguan Kokurikulum</h1>
@@ -262,7 +361,7 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
         <div style="page-break-inside: avoid;">
           <h3 style="background: #f3f4f6; padding: 10px; font-size: 16px; border-left: 5px solid #b91c1c; margin-bottom: 15px;">GAMBAR AKTIVITI</h3>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-            ${imgData.map(src => src ? `
+            ${finalImgData.map(src => src ? `
                 <div style="border: 1px solid #ddd; padding: 5px; background: #fff; height: 200px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
                     <img src="${src}" style="width: 100%; height: 100%; object-fit: cover;" />
                 </div>
@@ -306,11 +405,11 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
     e.preventDefault();
     setIsSubmitting(true);
 
-    let firebaseReportId: string | undefined;
+    let firebaseReportId: string | undefined = editingReport?.id;
 
     try {
-      // STEP 1: Save to Firebase FIRST (data protection)
-      setLoadingText('Menyimpan ke pangkalan data...');
+      // STEP 1: Save to Firebase (data protection)
+      setLoadingText(isEditMode ? 'Mengemaskini pangkalan data...' : 'Menyimpan ke pangkalan data...');
       const reportData: WeeklyReportData = {
         unitId: unit.id,
         unitName: unit.name,
@@ -331,9 +430,17 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
         refleksi: formData.refleksi
       };
 
-      const firebaseResult = await firebaseService.submitWeeklyReport(reportData);
-      firebaseReportId = firebaseResult.id;
-      console.log("✅ Data selamat disimpan ke Firebase:", firebaseReportId);
+      if (isEditMode && editingReport?.id) {
+        // Update existing report
+        await firebaseService.updateWeeklyReport(editingReport.id, reportData);
+        firebaseReportId = editingReport.id;
+        console.log("✅ Data dikemaskini di Firebase:", firebaseReportId);
+      } else {
+        // Create new report
+        const firebaseResult = await firebaseService.submitWeeklyReport(reportData);
+        firebaseReportId = firebaseResult.id;
+        console.log("✅ Data selamat disimpan ke Firebase:", firebaseReportId);
+      }
 
       // STEP 2: Generate PDF
       setLoadingText('Menjana PDF...');
@@ -359,18 +466,15 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
       }
 
       // SUCCESS: Clear draft and reset form
-      clearDraft();
-      alert("✅ Laporan Berjaya Dihantar & Disimpan!");
+      if (!isEditMode) {
+        clearDraft();
+      }
+      const successMsg = isEditMode ? "✅ Laporan Berjaya Dikemaskini!" : "✅ Laporan Berjaya Dihantar & Disimpan!";
+      alert(successMsg);
       setShowFormModal(false);
 
       // Reset Form
-      setFormData({
-        perjumpaanKali: '', tarikh: '', hari: '', masa: '1.10 - 2.10 petang', tempat: '',
-        muridHadir: '', jumlahMurid: '', aktiviti1: '', aktiviti2: '', aktiviti3: '', pikebm: '', refleksi: ''
-      });
-      setImagePreviews(['', '', '', '']);
-      setReportImages([null, null, null, null]);
-      setSelectedTeachers(unit.teachers || []);
+      resetForm();
       fetchReports(true); // Refresh List
 
     } catch (err: any) {
@@ -394,6 +498,15 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
     }
   };
 
+  // Find matching Firebase report for a Drive report
+  const findFirebaseReport = (driveReport: WeeklyReportItem): WeeklyReportData | undefined => {
+    return firebaseReports.find(fbr =>
+      fbr.perjumpaanKali === driveReport.activity.split(' - ')[0]?.replace('Laporan ', '') ||
+      fbr.tarikh === driveReport.date ||
+      driveReport.activity.includes(fbr.perjumpaanKali)
+    );
+  };
+
   return (
     <div className="animate-fadeIn pb-24 relative min-h-[500px]">
       {/* HEADER NAVIGASI */}
@@ -415,12 +528,12 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
               Folder Digital
            </span>
         </div>
-        <button 
+        <button
           onClick={() => fetchReports(true)}
           disabled={isRefreshing}
           className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all ${
-            isRefreshing 
-            ? 'bg-gray-100 text-gray-400 border-gray-200' 
+            isRefreshing
+            ? 'bg-gray-100 text-gray-400 border-gray-200'
             : 'bg-white text-gray-600 border-gray-200 hover:border-red-300 hover:text-red-600 shadow-sm active:scale-95'
           }`}
         >
@@ -436,7 +549,62 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
         </div>
       ) : (
         <div className="space-y-4">
-          {reports.map((report) => (
+          {/* Show Firebase reports (editable) */}
+          {firebaseReports.map((report) => (
+            <div key={report.id} className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-blue-600 border-gray-100 hover:shadow-md transition-all group relative">
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex items-center gap-2">
+                   <div className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-black text-[10px] border border-blue-100 uppercase">
+                     Firebase
+                   </div>
+                   <span className="text-[10px] text-gray-400 font-bold">{new Date(report.tarikh).toLocaleDateString('ms-MY')}</span>
+                </div>
+
+                <div className="flex gap-2">
+                    {report.pdfUrl && (
+                    <button
+                        onClick={() => {
+                          setSelectedPdfUrl(report.pdfUrl || '');
+                          setSelectedPdfTitle(`Laporan ${report.perjumpaanKali}`);
+                        }}
+                        className="text-[10px] font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-100 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-1 shadow-sm"
+                    >
+                        Lihat PDF 📄
+                    </button>
+                    )}
+                    {/* Edit Button - Only for current year */}
+                    {year === 2026 && (
+                      <button
+                         onClick={() => handleRequestEdit(report)}
+                         className="text-[10px] font-bold bg-green-50 text-green-700 px-3 py-1.5 rounded-full border border-green-100 hover:bg-green-600 hover:text-white transition-all flex items-center gap-1 shadow-sm"
+                      >
+                          ✏️ Edit
+                      </button>
+                    )}
+                    <button
+                       onClick={(e) => {
+                           e.stopPropagation();
+                           setFileToDelete(report.id || '');
+                           setFirebaseReportToDelete(report.id || null);
+                       }}
+                       className="text-[10px] font-bold bg-gray-50 text-gray-500 w-8 h-8 rounded-full border border-gray-200 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all flex items-center justify-center shadow-sm"
+                       title="Padam Laporan"
+                    >
+                       🗑️
+                    </button>
+                </div>
+              </div>
+              <h3 className="font-bold text-gray-800 text-base mb-1 group-hover:text-blue-700 transition-colors line-clamp-2">
+                {report.perjumpaanKali} - {report.aktiviti1 || 'Aktiviti'}
+              </h3>
+              <p className="text-[10px] text-gray-400 font-medium tracking-wide truncate">
+                 Hadir: {report.muridHadir}/{report.jumlahMurid} • {report.tempat}
+              </p>
+            </div>
+          ))}
+
+          {/* Show Drive reports that don't have Firebase data (legacy) */}
+          {reports.filter(r => !firebaseReports.some(fb => fb.tarikh === r.date)).map((report) => (
             <div key={report.id} className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-red-600 border-gray-100 hover:shadow-md transition-all active:scale-[0.99] group relative">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2">
@@ -445,10 +613,10 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                    </div>
                    <span className="text-[10px] text-gray-400 font-bold">{new Date(report.date).toLocaleDateString('ms-MY')}</span>
                 </div>
-                
+
                 <div className="flex gap-2">
                     {report.fileUrl && (
-                    <button 
+                    <button
                         onClick={() => {
                         setSelectedPdfUrl(report.fileUrl || '');
                         setSelectedPdfTitle(report.activity);
@@ -458,7 +626,7 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                         Lihat PDF 📄
                     </button>
                     )}
-                    <button 
+                    <button
                        onClick={(e) => {
                            e.stopPropagation();
                            setFileToDelete(report.id);
@@ -479,7 +647,7 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
             </div>
           ))}
 
-          {reports.length === 0 && !isLoading && (
+          {firebaseReports.length === 0 && reports.length === 0 && !isLoading && (
             <div className="py-20 text-center border-2 border-dashed border-gray-200 rounded-3xl bg-gray-50/50 px-8">
                <div className="bg-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                   <span className="text-3xl">📂</span>
@@ -496,7 +664,10 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
       {/* FAB ADD BUTTON */}
       {year === 2026 && (
         <button
-           onClick={() => setShowFormModal(true)}
+           onClick={() => {
+             resetForm();
+             setShowFormModal(true);
+           }}
            className="fixed bottom-6 right-6 z-40 bg-red-600 hover:bg-red-700 text-white rounded-full p-4 shadow-2xl shadow-red-300 hover:scale-110 active:scale-95 transition-all duration-300 flex items-center gap-2 group border-4 border-white"
         >
            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 font-bold whitespace-nowrap text-sm pl-1">Laporan Baru</span>
@@ -506,35 +677,109 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
 
       {/* PDF MODAL */}
       {selectedPdfUrl && (
-         <PDFViewerModal 
-            url={selectedPdfUrl} 
-            title={selectedPdfTitle} 
-            onClose={() => setSelectedPdfUrl(null)} 
+         <PDFViewerModal
+            url={selectedPdfUrl}
+            title={selectedPdfTitle}
+            onClose={() => setSelectedPdfUrl(null)}
          />
       )}
 
       {/* DELETE CONFIRMATION MODAL */}
       <DeleteConfirmationModal
          isOpen={!!fileToDelete}
-         onClose={() => setFileToDelete(null)}
+         onClose={() => {
+           setFileToDelete(null);
+           setFirebaseReportToDelete(null);
+         }}
          onConfirm={handleDeleteConfirm}
          unitPassword={unit.password}
       />
+
+      {/* EDIT PASSWORD CONFIRMATION MODAL */}
+      {showEditPasswordModal && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => {
+            setShowEditPasswordModal(false);
+            setEditPassword('');
+            setEditPasswordError('');
+            setPendingEditReport(null);
+          }}></div>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative animate-scaleUp shadow-2xl z-10">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+                ✏️
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Edit Laporan Mingguan?</h3>
+              <p className="text-sm text-gray-500 mt-2">
+                <span className="font-bold text-blue-600">{pendingEditReport?.perjumpaanKali}</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-2">
+                Sila masukkan kata laluan unit untuk membolehkan pengeditan.
+              </p>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleEditPasswordConfirm(); }} className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wider text-center">Kata Laluan Unit</p>
+                <Input
+                  type="password"
+                  placeholder="Masukkan Kata Laluan"
+                  value={editPassword}
+                  onChange={e => {
+                    setEditPassword(e.target.value);
+                    setEditPasswordError('');
+                  }}
+                  className="text-center font-bold tracking-widest text-lg"
+                  autoFocus
+                />
+                {editPasswordError && <p className="text-xs text-red-600 font-bold text-center mt-2 animate-pulse">{editPasswordError}</p>}
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowEditPasswordModal(false);
+                    setEditPassword('');
+                    setEditPasswordError('');
+                    setPendingEditReport(null);
+                  }}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200"
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 shadow-blue-200"
+                >
+                  Teruskan Edit
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL BORANG LAPORAN */}
       {showFormModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4">
            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => !isSubmitting && setShowFormModal(false)}></div>
-           
+
            <div className="bg-slate-50 rounded-2xl w-full max-w-2xl relative animate-scaleUp max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-              
+
               {/* Modal Header */}
-              <div className="bg-gradient-to-r from-blue-600 to-sky-500 p-5 text-white shrink-0">
+              <div className={`p-5 text-white shrink-0 ${isEditMode ? 'bg-gradient-to-r from-green-600 to-emerald-500' : 'bg-gradient-to-r from-blue-600 to-sky-500'}`}>
                  <div className="flex justify-between items-start">
                     <div>
-                        <h3 className="text-lg font-bold">Laporan Mingguan Baru</h3>
+                        <h3 className="text-lg font-bold">{isEditMode ? 'Edit Laporan Mingguan' : 'Laporan Mingguan Baru'}</h3>
                         <p className="text-xs opacity-90">{unit.name} • {unit.category.replace('_', ' ')}</p>
-                        {(formData.perjumpaanKali || formData.tarikh || formData.aktiviti1) && (
+                        {isEditMode && (
+                          <p className="text-[10px] mt-1 bg-white/20 px-2 py-0.5 rounded inline-block">
+                            ✏️ Mod Edit - {editingReport?.perjumpaanKali}
+                          </p>
+                        )}
+                        {!isEditMode && (formData.perjumpaanKali || formData.tarikh || formData.aktiviti1) && (
                           <p className="text-[10px] mt-1 bg-white/20 px-2 py-0.5 rounded inline-block">
                             💾 Draf Auto-Simpan Aktif
                           </p>
@@ -546,9 +791,11 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                         if (hasData && !isSubmitting) {
                           if (confirm("⚠️ Anda mempunyai data yang belum dihantar.\n\nDraf akan disimpan automatik.\nTutup borang?")) {
                             setShowFormModal(false);
+                            if (isEditMode) resetForm();
                           }
                         } else {
                           setShowFormModal(false);
+                          if (isEditMode) resetForm();
                         }
                       }}
                       className="text-white/80 hover:text-white"
@@ -562,7 +809,7 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
               {/* Modal Body (Scrollable) */}
               <div className="p-6 overflow-y-auto custom-scrollbar">
                  <form id="reportForm" onSubmit={handleSubmit} className="space-y-6">
-                    
+
                     {/* Unit & Kategori (Read Only) */}
                     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                         <h4 className="text-sm font-bold text-gray-700 mb-3 uppercase border-b pb-2">1. Maklumat Unit</h4>
@@ -579,8 +826,8 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto">
                             {(unit.teachers || []).map((t, idx) => (
                                 <label key={idx} className="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 cursor-pointer border border-transparent hover:border-gray-200 transition-all">
-                                    <input 
-                                        type="checkbox" 
+                                    <input
+                                        type="checkbox"
                                         checked={selectedTeachers.includes(t)}
                                         onChange={() => handleTeacherToggle(t)}
                                         className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
@@ -598,7 +845,7 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Perjumpaan Kali Ke-</label>
-                                <select 
+                                <select
                                     required
                                     value={formData.perjumpaanKali}
                                     onChange={e => setFormData({...formData, perjumpaanKali: e.target.value})}
@@ -615,7 +862,7 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                             <Input label="Masa" value={formData.masa} onChange={e => setFormData({...formData, masa: e.target.value})} />
                         </div>
                         <Input label="Tempat" placeholder="Cth: Dewan Sekolah" required value={formData.tempat} onChange={e => setFormData({...formData, tempat: e.target.value})} />
-                        
+
                         <div className="grid grid-cols-2 gap-4 mt-4">
                             <Input type="number" label="Murid Hadir" required value={formData.muridHadir} onChange={e => setFormData({...formData, muridHadir: e.target.value})} />
                             <Input type="number" label="Jumlah Murid" required value={formData.jumlahMurid} onChange={e => setFormData({...formData, jumlahMurid: e.target.value})} />
@@ -647,9 +894,9 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                                     ) : (
                                         <span className="text-gray-400 text-xs">Foto {idx+1}</span>
                                     )}
-                                    <input 
-                                        type="file" 
-                                        accept="image/*" 
+                                    <input
+                                        type="file"
+                                        accept="image/*"
                                         className="absolute inset-0 opacity-0 cursor-pointer"
                                         onChange={(e) => handleImageChange(idx, e)}
                                     />
@@ -663,9 +910,18 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
 
               {/* Modal Footer */}
               <div className="p-5 border-t border-gray-200 bg-white flex justify-end gap-3 shrink-0 rounded-b-2xl">
-                 <Button variant="ghost" type="button" onClick={() => setShowFormModal(false)} disabled={isSubmitting}>Batal</Button>
-                 <Button variant="primary" form="reportForm" type="submit" isLoading={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200">
-                    {isSubmitting ? (loadingText || 'Menghantar...') : 'Hantar Laporan'}
+                 <Button variant="ghost" type="button" onClick={() => {
+                   setShowFormModal(false);
+                   if (isEditMode) resetForm();
+                 }} disabled={isSubmitting}>Batal</Button>
+                 <Button
+                   variant="primary"
+                   form="reportForm"
+                   type="submit"
+                   isLoading={isSubmitting}
+                   className={isEditMode ? "bg-green-600 hover:bg-green-700 text-white shadow-green-200" : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200"}
+                 >
+                    {isSubmitting ? (loadingText || 'Menghantar...') : (isEditMode ? 'Kemaskini Laporan' : 'Hantar Laporan')}
                  </Button>
               </div>
            </div>
