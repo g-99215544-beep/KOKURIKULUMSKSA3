@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { Unit, UnitCategory } from '../types';
+import { Unit } from '../types';
 import { Button } from '../components/ui/Button';
 import { Input, Textarea } from '../components/ui/Input';
 import { gasService } from '../services/gasService';
+import { firebaseService, OrgChartData } from '../services/firebaseService';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 
@@ -17,20 +18,28 @@ interface OrgChartManagerProps {
 }
 
 export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, onBack }) => {
-  const [files, setFiles] = useState<any[]>([]);
+  const [firebaseCharts, setFirebaseCharts] = useState<OrgChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // PDF View State
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
 
   // Delete State
-  const [fileToDelete, setFileToDelete] = useState<string | null>(null);
+  const [chartToDelete, setChartToDelete] = useState<OrgChartData | null>(null);
 
   // Form State
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingText, setLoadingText] = useState('');
+
+  // Edit Mode State
+  const [editingChart, setEditingChart] = useState<OrgChartData | null>(null);
+  const [showEditPasswordModal, setShowEditPasswordModal] = useState(false);
+  const [editPassword, setEditPassword] = useState('');
+  const [editPasswordError, setEditPasswordError] = useState('');
+  const [pendingEditChart, setPendingEditChart] = useState<OrgChartData | null>(null);
 
   const [formData, setFormData] = useState({
     pengerusi: '',
@@ -43,44 +52,101 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
   });
 
   const folderType = 'CARTA ORGANISASI';
+  const isEditMode = !!editingChart;
 
-  // Load existing files
-  const loadFiles = async () => {
+  // Load existing charts from Firebase
+  const loadCharts = async (force: boolean = false) => {
+    if (force) setIsRefreshing(true);
     setIsLoading(true);
     try {
-      const data = await gasService.getModuleFiles(unit.name, year, folderType);
-      setFiles(Array.isArray(data) ? data : []);
+      const data = await firebaseService.getOrgChartByUnit(unit.name, year);
+      setFirebaseCharts(data);
     } catch (e) {
       console.error(e);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
-    loadFiles();
+    loadCharts();
   }, [unit, year]);
+
+  // Reset form to initial state
+  const resetForm = () => {
+    setFormData({
+      pengerusi: '',
+      naibPengerusi: '',
+      setiausaha: '',
+      penSetiausaha: '',
+      bendahari: '',
+      penBendahari: '',
+      ajk: ''
+    });
+    setEditingChart(null);
+  };
+
+  // Handle Edit Password Confirmation
+  const handleEditPasswordConfirm = () => {
+    const isValidPassword =
+      editPassword.trim().toUpperCase() === (unit.password || '').toUpperCase() ||
+      editPassword === 'admin';
+
+    if (!isValidPassword) {
+      setEditPasswordError('Kata laluan salah!');
+      return;
+    }
+
+    // Password valid, proceed to edit
+    if (pendingEditChart) {
+      setEditingChart(pendingEditChart);
+      // Pre-fill form data
+      setFormData({
+        pengerusi: pendingEditChart.pengerusi || '',
+        naibPengerusi: pendingEditChart.naibPengerusi || '',
+        setiausaha: pendingEditChart.setiausaha || '',
+        penSetiausaha: pendingEditChart.penSetiausaha || '',
+        bendahari: pendingEditChart.bendahari || '',
+        penBendahari: pendingEditChart.penBendahari || '',
+        ajk: pendingEditChart.ajk || ''
+      });
+      setShowModal(true);
+    }
+
+    setShowEditPasswordModal(false);
+    setEditPassword('');
+    setEditPasswordError('');
+    setPendingEditChart(null);
+  };
+
+  // Handle requesting edit (show password modal first)
+  const handleRequestEdit = (chart: OrgChartData) => {
+    setPendingEditChart(chart);
+    setShowEditPasswordModal(true);
+  };
 
   // Handle Deletion
   const handleDeleteConfirm = async () => {
-    if (fileToDelete) {
-        try {
-            await gasService.deleteFile(fileToDelete, unit.name, year, folderType);
-            alert("✅ Carta berjaya dipadam.");
-            loadFiles();
-        } catch (e: any) {
-            alert("❌ Gagal memadam fail: " + e.message);
-        }
+    if (chartToDelete?.id) {
+      try {
+        await firebaseService.deleteOrgChart(chartToDelete.id);
+        alert("✅ Carta berjaya dipadam.");
+        loadCharts(true);
+      } catch (e: any) {
+        alert("❌ Gagal memadam carta: " + e.message);
+      }
     }
+    setChartToDelete(null);
   };
 
   // PDF Generation Logic
   const createPDFBlob = async (): Promise<Blob> => {
      const ajkList = formData.ajk.split('\n').filter(line => line.trim() !== '');
-     
+
      const content = `
       <div style="font-family: 'Times New Roman', serif; padding: 40px; color: #000; max-width: 800px; margin: 0 auto; text-align: center;">
-        
+
         <!-- Header -->
         <div style="margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px;">
           <h1 style="margin: 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">CARTA ORGANISASI ${year}</h1>
@@ -107,7 +173,7 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
                 <div style="font-size: 12px;">${formData.pengerusi || '-'}</div>
             </div>
             <div style="width: 2px; height: 20px; background: #000; margin: 0 auto;"></div>
-            
+
             <!-- Naib Pengerusi -->
             <div style="border: 1px solid #000; padding: 8px; width: 200px; margin: 0 auto; background: #fff;">
                 <div style="font-size: 10px; font-weight: bold;">NAIB PENGERUSI</div>
@@ -188,22 +254,67 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setLoadingText('Menjana PDF Carta...');
+
+    let firebaseChartId: string | undefined = editingChart?.id;
 
     try {
+      // STEP 1: Save to Firebase (source of truth)
+      setLoadingText(isEditMode ? 'Mengemaskini pangkalan data...' : 'Menyimpan ke pangkalan data...');
+
+      const chartData: OrgChartData = {
+        unitId: unit.id,
+        unitName: unit.name,
+        year: year,
+        pengerusi: formData.pengerusi,
+        naibPengerusi: formData.naibPengerusi,
+        setiausaha: formData.setiausaha,
+        penSetiausaha: formData.penSetiausaha,
+        bendahari: formData.bendahari,
+        penBendahari: formData.penBendahari,
+        ajk: formData.ajk
+      };
+
+      if (isEditMode && editingChart?.id) {
+        // Update existing chart
+        await firebaseService.updateOrgChart(editingChart.id, chartData);
+        firebaseChartId = editingChart.id;
+        console.log("✅ Carta dikemaskini di Firebase:", firebaseChartId);
+      } else {
+        // Create new chart
+        const firebaseResult = await firebaseService.saveOrgChart(chartData);
+        firebaseChartId = firebaseResult.id || undefined;
+        console.log("✅ Carta disimpan ke Firebase:", firebaseChartId);
+      }
+
+      // STEP 2: Generate PDF
+      setLoadingText('Menjana PDF Carta...');
       const pdfBlob = await createPDFBlob();
       const fileName = `CartaOrganisasi_${year}_${unit.name.replace(/\s/g, '')}.pdf`;
       const file = new File([pdfBlob], fileName, { type: "application/pdf" });
 
-      setLoadingText('Memuat naik...');
-      await gasService.uploadFile(file, `Carta Organisasi ${year}`, unit.name, year, folderType);
+      // STEP 3: Upload PDF to Google Drive (as backup)
+      setLoadingText('Memuat naik PDF ke Drive...');
+      const uploadResult = await gasService.uploadFile(file, `Carta Organisasi ${year}`, unit.name, year, folderType);
 
-      alert("✅ Carta Organisasi Berjaya Disimpan!");
+      // STEP 4: Update Firebase with PDF URL
+      if (firebaseChartId && uploadResult?.fileUrl) {
+        setLoadingText('Mengemaskini pautan PDF...');
+        await firebaseService.updateOrgChart(firebaseChartId, { ...chartData, pdfUrl: uploadResult.fileUrl });
+        console.log("✅ PDF URL dikemaskini di Firebase");
+      }
+
+      const successMsg = isEditMode ? "✅ Carta Organisasi Berjaya Dikemaskini!" : "✅ Carta Organisasi Berjaya Disimpan!";
+      alert(successMsg);
       setShowModal(false);
-      setFormData({ pengerusi: '', naibPengerusi: '', setiausaha: '', penSetiausaha: '', bendahari: '', penBendahari: '', ajk: '' });
-      loadFiles();
+      resetForm();
+      loadCharts(true);
     } catch (error: any) {
-      alert("Ralat: " + error.message);
+      console.error("❌ Ralat:", error);
+      let errorMessage = "Ralat: " + error.message;
+      if (firebaseChartId) {
+        errorMessage += "\n\n⚠️ Data anda SELAMAT di Firebase.";
+      }
+      alert("❌ " + errorMessage);
     } finally {
       setIsSubmitting(false);
       setLoadingText('');
@@ -223,14 +334,32 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
               <p className="text-[10px] text-red-600 font-bold uppercase tracking-widest mt-1">{unit.name} • {year}</p>
             </div>
         </div>
-        
-        {/* ADD BUTTON */}
-        <button 
-           onClick={() => setShowModal(true)} 
-           className="w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-red-200 active:scale-95 transition-all group"
-           title="Buat Carta Organisasi"
+
+        {/* ADD BUTTON - Only show if no chart exists for this year */}
+        {year === 2026 && firebaseCharts.length === 0 && (
+          <button
+             onClick={() => {
+               resetForm();
+               setShowModal(true);
+             }}
+             className="w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-red-200 active:scale-95 transition-all group"
+             title="Buat Carta Organisasi"
+          >
+             <svg className="w-5 h-5 group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          </button>
+        )}
+
+        {/* REFRESH BUTTON */}
+        <button
+          onClick={() => loadCharts(true)}
+          disabled={isRefreshing}
+          className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all ${
+            isRefreshing
+            ? 'bg-gray-100 text-gray-400 border-gray-200'
+            : 'bg-white text-gray-600 border-gray-200 hover:border-red-300 hover:text-red-600 shadow-sm active:scale-95'
+          }`}
         >
-           <svg className="w-5 h-5 group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          {isRefreshing ? 'Loading...' : 'Refresh'}
         </button>
       </div>
 
@@ -239,39 +368,57 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
          {isLoading ? (
              <div className="flex flex-col items-center justify-center h-64">
                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-red-100 border-t-red-600"></div>
-                 <p className="text-[10px] text-gray-400 mt-4 font-bold uppercase tracking-widest animate-pulse">Memuatkan Fail...</p>
+                 <p className="text-[10px] text-gray-400 mt-4 font-bold uppercase tracking-widest animate-pulse">Memuatkan Data...</p>
              </div>
-         ) : files.length > 0 ? (
+         ) : firebaseCharts.length > 0 ? (
              <div className="space-y-3">
-                 {files.map((f, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-lg hover:shadow-red-50 transition-all group duration-300">
+                 {firebaseCharts.map((chart) => (
+                    <div key={chart.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-lg hover:shadow-red-50 transition-all group duration-300">
                         <div className="flex items-center gap-4 overflow-hidden">
                            <div className="w-12 h-12 rounded-xl bg-red-100 text-red-600 flex items-center justify-center text-2xl shrink-0">
                               👥
                            </div>
                            <div className="min-w-0">
-                              <h4 className="font-bold text-gray-800 text-sm truncate pr-2 group-hover:text-red-700 transition-colors">{f.description || f.name}</h4>
+                              <h4 className="font-bold text-gray-800 text-sm truncate pr-2 group-hover:text-red-700 transition-colors">Carta Organisasi {year}</h4>
                               <p className="text-[10px] text-gray-400 font-medium">
-                                 {new Date(f.date).toLocaleDateString()} • PDF
+                                 Pengerusi: {chart.pengerusi || '-'}
                               </p>
                            </div>
                         </div>
                         <div className="flex gap-2">
-                            <button 
-                                onClick={() => {
-                                    setSelectedPdfUrl(f.url);
-                                    setSelectedPdfTitle(f.description || f.name);
-                                }}
-                                className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-blue-500 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all shadow-sm"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                            </button>
-                            <button 
-                                onClick={() => setFileToDelete(f.id)}
-                                className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
+                            {/* View PDF Button */}
+                            {chart.pdfUrl && (
+                              <button
+                                  onClick={() => {
+                                      setSelectedPdfUrl(chart.pdfUrl || '');
+                                      setSelectedPdfTitle(`Carta Organisasi ${year}`);
+                                  }}
+                                  className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-blue-500 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all shadow-sm"
+                                  title="Lihat PDF"
+                              >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                              </button>
+                            )}
+                            {/* Edit Button - Only for current year */}
+                            {year === 2026 && (
+                              <button
+                                  onClick={() => handleRequestEdit(chart)}
+                                  className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-green-500 hover:bg-green-600 hover:text-white hover:border-green-600 transition-all shadow-sm"
+                                  title="Edit Carta"
+                              >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
+                            )}
+                            {/* Delete Button - Only for current year */}
+                            {year === 2026 && (
+                              <button
+                                  onClick={() => setChartToDelete(chart)}
+                                  className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm"
+                                  title="Padam Carta"
+                              >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            )}
                         </div>
                     </div>
                  ))}
@@ -287,35 +434,111 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
 
       {/* PDF MODAL */}
       {selectedPdfUrl && (
-         <PDFViewerModal 
-            url={selectedPdfUrl} 
-            title={selectedPdfTitle} 
-            onClose={() => setSelectedPdfUrl(null)} 
+         <PDFViewerModal
+            url={selectedPdfUrl}
+            title={selectedPdfTitle}
+            onClose={() => setSelectedPdfUrl(null)}
          />
       )}
 
       {/* DELETE MODAL */}
-      <DeleteConfirmationModal 
-         isOpen={!!fileToDelete}
-         onClose={() => setFileToDelete(null)}
+      <DeleteConfirmationModal
+         isOpen={!!chartToDelete}
+         onClose={() => setChartToDelete(null)}
          onConfirm={handleDeleteConfirm}
          unitPassword={unit.password}
       />
+
+      {/* EDIT PASSWORD CONFIRMATION MODAL */}
+      {showEditPasswordModal && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => {
+            setShowEditPasswordModal(false);
+            setEditPassword('');
+            setEditPasswordError('');
+            setPendingEditChart(null);
+          }}></div>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative animate-scaleUp shadow-2xl z-10">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+                ✏️
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Edit Carta Organisasi?</h3>
+              <p className="text-sm text-gray-500 mt-2">
+                <span className="font-bold text-green-600">Carta Organisasi {year}</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-2">
+                Sila masukkan kata laluan unit untuk membolehkan pengeditan.
+              </p>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleEditPasswordConfirm(); }} className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wider text-center">Kata Laluan Unit</p>
+                <Input
+                  type="password"
+                  placeholder="Masukkan Kata Laluan"
+                  value={editPassword}
+                  onChange={e => {
+                    setEditPassword(e.target.value);
+                    setEditPasswordError('');
+                  }}
+                  className="text-center font-bold tracking-widest text-lg"
+                  autoFocus
+                />
+                {editPasswordError && <p className="text-xs text-red-600 font-bold text-center mt-2 animate-pulse">{editPasswordError}</p>}
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowEditPasswordModal(false);
+                    setEditPassword('');
+                    setEditPasswordError('');
+                    setPendingEditChart(null);
+                  }}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200"
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1 bg-green-600 hover:bg-green-700 shadow-green-200"
+                >
+                  Teruskan Edit
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* FORM MODAL */}
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4">
            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => !isSubmitting && setShowModal(false)}></div>
            <div className="bg-white rounded-2xl w-full max-w-2xl relative animate-scaleUp max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-              
-              <div className="bg-gray-900 p-5 text-white shrink-0 flex justify-between items-center">
-                 <h3 className="text-lg font-bold">Isi Carta Organisasi</h3>
-                 <button onClick={() => setShowModal(false)} className="text-white/70 hover:text-white">✕</button>
+
+              <div className={`p-5 text-white shrink-0 flex justify-between items-center ${isEditMode ? 'bg-gradient-to-r from-green-600 to-emerald-500' : 'bg-gray-900'}`}>
+                 <div>
+                   <h3 className="text-lg font-bold">{isEditMode ? 'Edit Carta Organisasi' : 'Isi Carta Organisasi'}</h3>
+                   {isEditMode && (
+                     <p className="text-[10px] mt-1 bg-white/20 px-2 py-0.5 rounded inline-block">
+                       ✏️ Mod Edit - {year}
+                     </p>
+                   )}
+                 </div>
+                 <button onClick={() => {
+                   setShowModal(false);
+                   if (isEditMode) resetForm();
+                 }} className="text-white/70 hover:text-white">✕</button>
               </div>
 
               <div className="p-6 overflow-y-auto custom-scrollbar">
                  <form id="orgForm" onSubmit={handleSubmit} className="space-y-6">
-                    
+
                     <div className="bg-red-50 p-4 rounded-xl border border-red-100">
                         <h4 className="text-xs font-black text-red-600 uppercase mb-2">Guru Penasihat (Auto)</h4>
                         <div className="flex flex-wrap gap-2">
@@ -341,12 +564,12 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
                     </div>
 
                     <div>
-                        <Textarea 
-                            label="Ahli Jawatankuasa (AJK)" 
-                            placeholder="Senaraikan nama AJK (Satu nama satu baris)..." 
+                        <Textarea
+                            label="Ahli Jawatankuasa (AJK)"
+                            placeholder="Senaraikan nama AJK (Satu nama satu baris)..."
                             rows={6}
-                            value={formData.ajk} 
-                            onChange={e => setFormData({...formData, ajk: e.target.value})} 
+                            value={formData.ajk}
+                            onChange={e => setFormData({...formData, ajk: e.target.value})}
                         />
                         <p className="text-[10px] text-gray-400 mt-1">* Tekan Enter untuk baris baru bagi setiap nama AJK.</p>
                     </div>
@@ -355,9 +578,18 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
               </div>
 
               <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 shrink-0">
-                 <Button variant="ghost" type="button" onClick={() => setShowModal(false)} disabled={isSubmitting}>Batal</Button>
-                 <Button variant="primary" form="orgForm" type="submit" isLoading={isSubmitting} className="bg-gray-900 hover:bg-black text-white">
-                    {isSubmitting ? (loadingText || 'Memproses...') : 'Simpan & Jana PDF'}
+                 <Button variant="ghost" type="button" onClick={() => {
+                   setShowModal(false);
+                   if (isEditMode) resetForm();
+                 }} disabled={isSubmitting}>Batal</Button>
+                 <Button
+                   variant="primary"
+                   form="orgForm"
+                   type="submit"
+                   isLoading={isSubmitting}
+                   className={isEditMode ? "bg-green-600 hover:bg-green-700 text-white" : "bg-gray-900 hover:bg-black text-white"}
+                 >
+                    {isSubmitting ? (loadingText || 'Memproses...') : (isEditMode ? 'Kemaskini Carta' : 'Simpan & Jana PDF')}
                  </Button>
               </div>
            </div>

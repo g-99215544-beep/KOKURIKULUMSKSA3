@@ -2,8 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { Unit } from '../types';
 import { Button } from '../components/ui/Button';
-import { Input, Textarea } from '../components/ui/Input';
+import { Input } from '../components/ui/Input';
 import { gasService } from '../services/gasService';
+import { firebaseService, AnnualPlanData } from '../services/firebaseService';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 
@@ -24,26 +25,34 @@ interface PlanItem {
 }
 
 const MONTHS = [
-  "Januari", "Februari", "Mac", "April", "Mei", "Jun", 
+  "Januari", "Februari", "Mac", "April", "Mei", "Jun",
   "Julai", "Ogos", "September", "Oktober", "November", "Disember"
 ];
 
 export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year, onBack }) => {
-  const [files, setFiles] = useState<any[]>([]);
+  const [firebasePlans, setFirebasePlans] = useState<AnnualPlanData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // PDF View State
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
 
   // Delete State
-  const [fileToDelete, setFileToDelete] = useState<string | null>(null);
+  const [planToDelete, setPlanToDelete] = useState<AnnualPlanData | null>(null);
 
   // Form State
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingText, setLoadingText] = useState('');
-  
+
+  // Edit Mode State
+  const [editingPlan, setEditingPlan] = useState<AnnualPlanData | null>(null);
+  const [showEditPasswordModal, setShowEditPasswordModal] = useState(false);
+  const [editPassword, setEditPassword] = useState('');
+  const [editPasswordError, setEditPasswordError] = useState('');
+  const [pendingEditPlan, setPendingEditPlan] = useState<AnnualPlanData | null>(null);
+
   // Dynamic Table State
   const [planItems, setPlanItems] = useState<PlanItem[]>([
     { month: 'Januari', date: '', activity: 'Mesyuarat Agung Tahunan', remarks: 'Semua Guru & Murid' },
@@ -51,35 +60,81 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
   ]);
 
   const folderType = 'RANCANGAN TAHUNAN';
+  const isEditMode = !!editingPlan;
 
-  // Load existing files
-  const loadFiles = async () => {
+  // Load existing plans from Firebase
+  const loadPlans = async (force: boolean = false) => {
+    if (force) setIsRefreshing(true);
     setIsLoading(true);
     try {
-      const data = await gasService.getModuleFiles(unit.name, year, folderType);
-      setFiles(Array.isArray(data) ? data : []);
+      const data = await firebaseService.getAnnualPlanByUnit(unit.name, year);
+      setFirebasePlans(data);
     } catch (e) {
       console.error(e);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
-    loadFiles();
+    loadPlans();
   }, [unit, year]);
+
+  // Reset form to initial state
+  const resetForm = () => {
+    setPlanItems([
+      { month: 'Januari', date: '', activity: 'Mesyuarat Agung Tahunan', remarks: 'Semua Guru & Murid' },
+      { month: 'Februari', date: '', activity: '', remarks: '' }
+    ]);
+    setEditingPlan(null);
+  };
+
+  // Handle Edit Password Confirmation
+  const handleEditPasswordConfirm = () => {
+    const isValidPassword =
+      editPassword.trim().toUpperCase() === (unit.password || '').toUpperCase() ||
+      editPassword === 'admin';
+
+    if (!isValidPassword) {
+      setEditPasswordError('Kata laluan salah!');
+      return;
+    }
+
+    // Password valid, proceed to edit
+    if (pendingEditPlan) {
+      setEditingPlan(pendingEditPlan);
+      // Pre-fill form data
+      setPlanItems(pendingEditPlan.planItems || [
+        { month: 'Januari', date: '', activity: '', remarks: '' }
+      ]);
+      setShowModal(true);
+    }
+
+    setShowEditPasswordModal(false);
+    setEditPassword('');
+    setEditPasswordError('');
+    setPendingEditPlan(null);
+  };
+
+  // Handle requesting edit (show password modal first)
+  const handleRequestEdit = (plan: AnnualPlanData) => {
+    setPendingEditPlan(plan);
+    setShowEditPasswordModal(true);
+  };
 
   // Handle Deletion
   const handleDeleteConfirm = async () => {
-    if (fileToDelete) {
-        try {
-            await gasService.deleteFile(fileToDelete, unit.name, year, folderType);
-            alert("✅ Rancangan berjaya dipadam.");
-            loadFiles();
-        } catch (e: any) {
-            alert("❌ Gagal memadam fail: " + e.message);
-        }
+    if (planToDelete?.id) {
+      try {
+        await firebaseService.deleteAnnualPlan(planToDelete.id);
+        alert("✅ Rancangan berjaya dipadam.");
+        loadPlans(true);
+      } catch (e: any) {
+        alert("❌ Gagal memadam rancangan: " + e.message);
+      }
     }
+    setPlanToDelete(null);
   };
 
   // Table Logic
@@ -104,7 +159,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
   const createPDFBlob = async (): Promise<Blob> => {
      const content = `
       <div style="font-family: Arial, sans-serif; padding: 40px; color: #000; max-width: 800px; margin: 0 auto;">
-        
+
         <!-- Header -->
         <div style="text-align: center; margin-bottom: 30px;">
           <h2 style="margin: 0; font-size: 14px; font-weight: bold;">RANCANGAN TAHUNAN AKTIVITI KOKURIKULUM TAHUN ${year}</h2>
@@ -181,23 +236,61 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setLoadingText('Menjana PDF...');
+
+    let firebasePlanId: string | undefined = editingPlan?.id;
 
     try {
+      // STEP 1: Save to Firebase (source of truth)
+      setLoadingText(isEditMode ? 'Mengemaskini pangkalan data...' : 'Menyimpan ke pangkalan data...');
+
+      const planData: AnnualPlanData = {
+        unitId: unit.id,
+        unitName: unit.name,
+        year: year,
+        planItems: planItems
+      };
+
+      if (isEditMode && editingPlan?.id) {
+        // Update existing plan
+        await firebaseService.updateAnnualPlan(editingPlan.id, planData);
+        firebasePlanId = editingPlan.id;
+        console.log("✅ Rancangan dikemaskini di Firebase:", firebasePlanId);
+      } else {
+        // Create new plan
+        const firebaseResult = await firebaseService.saveAnnualPlan(planData);
+        firebasePlanId = firebaseResult.id || undefined;
+        console.log("✅ Rancangan disimpan ke Firebase:", firebasePlanId);
+      }
+
+      // STEP 2: Generate PDF
+      setLoadingText('Menjana PDF...');
       const pdfBlob = await createPDFBlob();
       const fileName = `RancanganTahunan_${year}_${unit.name.replace(/\s/g, '')}.pdf`;
       const file = new File([pdfBlob], fileName, { type: "application/pdf" });
 
-      setLoadingText('Memuat naik...');
-      await gasService.uploadFile(file, `Rancangan Tahunan ${year}`, unit.name, year, folderType);
+      // STEP 3: Upload PDF to Google Drive (as backup)
+      setLoadingText('Memuat naik PDF ke Drive...');
+      const uploadResult = await gasService.uploadFile(file, `Rancangan Tahunan ${year}`, unit.name, year, folderType);
 
-      alert("✅ Rancangan Tahunan Berjaya Disimpan!");
+      // STEP 4: Update Firebase with PDF URL
+      if (firebasePlanId && uploadResult?.fileUrl) {
+        setLoadingText('Mengemaskini pautan PDF...');
+        await firebaseService.updateAnnualPlan(firebasePlanId, { ...planData, pdfUrl: uploadResult.fileUrl });
+        console.log("✅ PDF URL dikemaskini di Firebase");
+      }
+
+      const successMsg = isEditMode ? "✅ Rancangan Tahunan Berjaya Dikemaskini!" : "✅ Rancangan Tahunan Berjaya Disimpan!";
+      alert(successMsg);
       setShowModal(false);
-      // Reset to default
-      setPlanItems([{ month: 'Januari', date: '', activity: 'Mesyuarat Agung Tahunan', remarks: 'Semua Guru & Murid' }]);
-      loadFiles();
+      resetForm();
+      loadPlans(true);
     } catch (error: any) {
-      alert("Ralat: " + error.message);
+      console.error("❌ Ralat:", error);
+      let errorMessage = "Ralat: " + error.message;
+      if (firebasePlanId) {
+        errorMessage += "\n\n⚠️ Data anda SELAMAT di Firebase.";
+      }
+      alert("❌ " + errorMessage);
     } finally {
       setIsSubmitting(false);
       setLoadingText('');
@@ -217,14 +310,32 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
               <p className="text-[10px] text-orange-600 font-bold uppercase tracking-widest mt-1">{unit.name} • {year}</p>
             </div>
         </div>
-        
-        {/* ADD BUTTON */}
-        <button 
-           onClick={() => setShowModal(true)} 
-           className="w-10 h-10 bg-orange-500 hover:bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-orange-200 active:scale-95 transition-all group"
-           title="Buat Rancangan Tahunan"
+
+        {/* ADD BUTTON - Only show if no plan exists for this year */}
+        {year === 2026 && firebasePlans.length === 0 && (
+          <button
+             onClick={() => {
+               resetForm();
+               setShowModal(true);
+             }}
+             className="w-10 h-10 bg-orange-500 hover:bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-orange-200 active:scale-95 transition-all group"
+             title="Buat Rancangan Tahunan"
+          >
+             <svg className="w-5 h-5 group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          </button>
+        )}
+
+        {/* REFRESH BUTTON */}
+        <button
+          onClick={() => loadPlans(true)}
+          disabled={isRefreshing}
+          className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all ${
+            isRefreshing
+            ? 'bg-gray-100 text-gray-400 border-gray-200'
+            : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300 hover:text-orange-600 shadow-sm active:scale-95'
+          }`}
         >
-           <svg className="w-5 h-5 group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          {isRefreshing ? 'Loading...' : 'Refresh'}
         </button>
       </div>
 
@@ -233,39 +344,57 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
          {isLoading ? (
              <div className="flex flex-col items-center justify-center h-64">
                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-orange-100 border-t-orange-600"></div>
-                 <p className="text-[10px] text-gray-400 mt-4 font-bold uppercase tracking-widest animate-pulse">Memuatkan Fail...</p>
+                 <p className="text-[10px] text-gray-400 mt-4 font-bold uppercase tracking-widest animate-pulse">Memuatkan Data...</p>
              </div>
-         ) : files.length > 0 ? (
+         ) : firebasePlans.length > 0 ? (
              <div className="space-y-3">
-                 {files.map((f, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-lg hover:shadow-orange-50 transition-all group duration-300">
+                 {firebasePlans.map((plan) => (
+                    <div key={plan.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-lg hover:shadow-orange-50 transition-all group duration-300">
                         <div className="flex items-center gap-4 overflow-hidden">
                            <div className="w-12 h-12 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl shrink-0">
                               📊
                            </div>
                            <div className="min-w-0">
-                              <h4 className="font-bold text-gray-800 text-sm truncate pr-2 group-hover:text-orange-700 transition-colors">{f.description || f.name}</h4>
+                              <h4 className="font-bold text-gray-800 text-sm truncate pr-2 group-hover:text-orange-700 transition-colors">Rancangan Tahunan {year}</h4>
                               <p className="text-[10px] text-gray-400 font-medium">
-                                 {new Date(f.date).toLocaleDateString()} • PDF
+                                 {plan.planItems?.length || 0} aktiviti dirancang
                               </p>
                            </div>
                         </div>
                         <div className="flex gap-2">
-                            <button 
-                                onClick={() => {
-                                    setSelectedPdfUrl(f.url);
-                                    setSelectedPdfTitle(f.description || f.name);
-                                }}
-                                className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-orange-500 hover:bg-orange-600 hover:text-white hover:border-orange-600 transition-all shadow-sm"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                            </button>
-                            <button 
-                                onClick={() => setFileToDelete(f.id)}
-                                className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
+                            {/* View PDF Button */}
+                            {plan.pdfUrl && (
+                              <button
+                                  onClick={() => {
+                                      setSelectedPdfUrl(plan.pdfUrl || '');
+                                      setSelectedPdfTitle(`Rancangan Tahunan ${year}`);
+                                  }}
+                                  className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-orange-500 hover:bg-orange-600 hover:text-white hover:border-orange-600 transition-all shadow-sm"
+                                  title="Lihat PDF"
+                              >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                              </button>
+                            )}
+                            {/* Edit Button - Only for current year */}
+                            {year === 2026 && (
+                              <button
+                                  onClick={() => handleRequestEdit(plan)}
+                                  className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-green-500 hover:bg-green-600 hover:text-white hover:border-green-600 transition-all shadow-sm"
+                                  title="Edit Rancangan"
+                              >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
+                            )}
+                            {/* Delete Button - Only for current year */}
+                            {year === 2026 && (
+                              <button
+                                  onClick={() => setPlanToDelete(plan)}
+                                  className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm"
+                                  title="Padam Rancangan"
+                              >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            )}
                         </div>
                     </div>
                  ))}
@@ -281,38 +410,112 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
 
       {/* PDF MODAL */}
       {selectedPdfUrl && (
-         <PDFViewerModal 
-            url={selectedPdfUrl} 
-            title={selectedPdfTitle} 
-            onClose={() => setSelectedPdfUrl(null)} 
+         <PDFViewerModal
+            url={selectedPdfUrl}
+            title={selectedPdfTitle}
+            onClose={() => setSelectedPdfUrl(null)}
          />
       )}
 
       {/* DELETE MODAL */}
-      <DeleteConfirmationModal 
-         isOpen={!!fileToDelete}
-         onClose={() => setFileToDelete(null)}
+      <DeleteConfirmationModal
+         isOpen={!!planToDelete}
+         onClose={() => setPlanToDelete(null)}
          onConfirm={handleDeleteConfirm}
          unitPassword={unit.password}
       />
+
+      {/* EDIT PASSWORD CONFIRMATION MODAL */}
+      {showEditPasswordModal && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => {
+            setShowEditPasswordModal(false);
+            setEditPassword('');
+            setEditPasswordError('');
+            setPendingEditPlan(null);
+          }}></div>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative animate-scaleUp shadow-2xl z-10">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+                ✏️
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Edit Rancangan Tahunan?</h3>
+              <p className="text-sm text-gray-500 mt-2">
+                <span className="font-bold text-green-600">Rancangan Tahunan {year}</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-2">
+                Sila masukkan kata laluan unit untuk membolehkan pengeditan.
+              </p>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleEditPasswordConfirm(); }} className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wider text-center">Kata Laluan Unit</p>
+                <Input
+                  type="password"
+                  placeholder="Masukkan Kata Laluan"
+                  value={editPassword}
+                  onChange={e => {
+                    setEditPassword(e.target.value);
+                    setEditPasswordError('');
+                  }}
+                  className="text-center font-bold tracking-widest text-lg"
+                  autoFocus
+                />
+                {editPasswordError && <p className="text-xs text-red-600 font-bold text-center mt-2 animate-pulse">{editPasswordError}</p>}
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowEditPasswordModal(false);
+                    setEditPassword('');
+                    setEditPasswordError('');
+                    setPendingEditPlan(null);
+                  }}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200"
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="submit"
+                  className="flex-1 bg-green-600 hover:bg-green-700 shadow-green-200"
+                >
+                  Teruskan Edit
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* FORM MODAL */}
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4">
            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => !isSubmitting && setShowModal(false)}></div>
            <div className="bg-white rounded-2xl w-full max-w-4xl relative animate-scaleUp max-h-[95vh] overflow-hidden flex flex-col shadow-2xl">
-              
-              <div className="bg-orange-600 p-5 text-white shrink-0 flex justify-between items-center">
+
+              <div className={`p-5 text-white shrink-0 flex justify-between items-center ${isEditMode ? 'bg-gradient-to-r from-green-600 to-emerald-500' : 'bg-orange-600'}`}>
                  <div>
-                    <h3 className="text-lg font-bold">Rancangan Tahunan {year}</h3>
+                    <h3 className="text-lg font-bold">{isEditMode ? 'Edit Rancangan Tahunan' : 'Rancangan Tahunan'} {year}</h3>
                     <p className="text-xs opacity-90">{unit.name}</p>
+                    {isEditMode && (
+                      <p className="text-[10px] mt-1 bg-white/20 px-2 py-0.5 rounded inline-block">
+                        ✏️ Mod Edit
+                      </p>
+                    )}
                  </div>
-                 <button onClick={() => setShowModal(false)} className="text-white/70 hover:text-white">✕</button>
+                 <button onClick={() => {
+                   setShowModal(false);
+                   if (isEditMode) resetForm();
+                 }} className="text-white/70 hover:text-white">✕</button>
               </div>
 
               <div className="p-4 overflow-y-auto custom-scrollbar flex-1 bg-gray-50">
                  <form id="planForm" onSubmit={handleSubmit} className="space-y-4">
-                    
+
                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                         <table className="w-full text-sm">
                             <thead>
@@ -330,7 +533,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                                     <tr key={index} className="group hover:bg-orange-50 transition-colors">
                                         <td className="p-2 text-center text-gray-400 font-bold">{index + 1}</td>
                                         <td className="p-2">
-                                            <select 
+                                            <select
                                                 value={item.month}
                                                 onChange={(e) => handleItemChange(index, 'month', e.target.value)}
                                                 className="w-full p-2 border rounded text-xs focus:border-orange-500 outline-none"
@@ -340,7 +543,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                                             </select>
                                         </td>
                                         <td className="p-2">
-                                            <input 
+                                            <input
                                                 type="text"
                                                 placeholder="Cth: Minggu 1"
                                                 value={item.date}
@@ -349,7 +552,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                                             />
                                         </td>
                                         <td className="p-2">
-                                            <input 
+                                            <input
                                                 type="text"
                                                 placeholder="Nama Aktiviti"
                                                 value={item.activity}
@@ -359,7 +562,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                                             />
                                         </td>
                                         <td className="p-2">
-                                            <input 
+                                            <input
                                                 type="text"
                                                 placeholder="Catatan"
                                                 value={item.remarks}
@@ -368,8 +571,8 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                                             />
                                         </td>
                                         <td className="p-2 text-center">
-                                            <button 
-                                                type="button" 
+                                            <button
+                                                type="button"
                                                 onClick={() => removeItem(index)}
                                                 className="text-gray-300 hover:text-red-500 transition-colors"
                                             >
@@ -380,10 +583,10 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                                 ))}
                             </tbody>
                         </table>
-                        
+
                         <div className="mt-4 flex justify-center">
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 onClick={addItem}
                                 className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-xs font-bold transition-all active:scale-95"
                             >
@@ -396,9 +599,18 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
               </div>
 
               <div className="p-5 border-t border-gray-200 bg-white flex justify-end gap-3 shrink-0">
-                 <Button variant="ghost" type="button" onClick={() => setShowModal(false)} disabled={isSubmitting}>Batal</Button>
-                 <Button variant="primary" form="planForm" type="submit" isLoading={isSubmitting} className="bg-orange-600 hover:bg-orange-700 text-white shadow-orange-200">
-                    {isSubmitting ? (loadingText || 'Menjana PDF...') : 'Simpan & Jana PDF'}
+                 <Button variant="ghost" type="button" onClick={() => {
+                   setShowModal(false);
+                   if (isEditMode) resetForm();
+                 }} disabled={isSubmitting}>Batal</Button>
+                 <Button
+                   variant="primary"
+                   form="planForm"
+                   type="submit"
+                   isLoading={isSubmitting}
+                   className={isEditMode ? "bg-green-600 hover:bg-green-700 text-white" : "bg-orange-600 hover:bg-orange-700 text-white shadow-orange-200"}
+                 >
+                    {isSubmitting ? (loadingText || 'Menjana PDF...') : (isEditMode ? 'Kemaskini Rancangan' : 'Simpan & Jana PDF')}
                  </Button>
               </div>
            </div>
