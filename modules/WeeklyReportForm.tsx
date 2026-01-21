@@ -32,6 +32,9 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
   // Delete State
   const [reportToDelete, setReportToDelete] = useState<WeeklyReportData | null>(null);
 
+  // View Detail State
+  const [selectedReportToView, setSelectedReportToView] = useState<WeeklyReportData | null>(null);
+
   // State Borang Baru
   const [showFormModal, setShowFormModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -544,17 +547,13 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                 </div>
 
                 <div className="flex gap-2">
-                    {report.pdfUrl && (
+                    {/* View Button - Always visible */}
                     <button
-                        onClick={() => {
-                          setSelectedPdfUrl(report.pdfUrl || '');
-                          setSelectedPdfTitle(`Laporan ${report.perjumpaanKali}`);
-                        }}
+                        onClick={() => setSelectedReportToView(report)}
                         className="text-[10px] font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-100 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-1 shadow-sm"
                     >
-                        👁️ PDF
+                        👁️ Lihat
                     </button>
-                    )}
                     {/* Edit Button - Only for current year */}
                     {year === 2026 && (
                       <button
@@ -631,6 +630,125 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
          onConfirm={handleDeleteConfirm}
          unitPassword={unit.password}
       />
+
+      {/* VIEW REPORT DETAIL MODAL */}
+      {selectedReportToView && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedReportToView(null)}></div>
+          <div className="bg-white rounded-3xl w-full max-w-lg relative animate-scaleUp overflow-hidden flex flex-col max-h-[85vh] shadow-2xl">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-600 to-red-500 p-5 text-white shrink-0">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="inline-block px-2 py-1 rounded-md bg-white/20 text-[10px] font-black uppercase tracking-wider mb-2">
+                    {selectedReportToView.perjumpaanKali}
+                  </span>
+                  <h3 className="text-lg font-bold">{selectedReportToView.aktiviti1 || 'Laporan Mingguan'}</h3>
+                  <p className="text-xs opacity-90 mt-1">
+                    {new Date(selectedReportToView.tarikh).toLocaleDateString('ms-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                </div>
+                <button onClick={() => setSelectedReportToView(null)} className="text-white/80 hover:text-white text-xl">✕</button>
+              </div>
+
+              {/* Stats */}
+              <div className="flex gap-3 mt-4">
+                <div className="bg-white/20 rounded-lg p-2 px-4 backdrop-blur-sm text-center flex-1">
+                  <div className="text-2xl font-black">{selectedReportToView.muridHadir}</div>
+                  <div className="text-[9px] uppercase font-bold opacity-80">Hadir</div>
+                </div>
+                <div className="bg-white/20 rounded-lg p-2 px-4 backdrop-blur-sm text-center flex-1">
+                  <div className="text-2xl font-black">{selectedReportToView.jumlahMurid}</div>
+                  <div className="text-[9px] uppercase font-bold opacity-80">Jumlah</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 overflow-y-auto custom-scrollbar flex-1 bg-gray-50 space-y-4">
+              {/* Maklumat Perjumpaan */}
+              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <h4 className="text-xs font-black text-gray-500 uppercase mb-3 border-b pb-2">Maklumat Perjumpaan</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Hari</p>
+                    <p className="font-semibold text-gray-800">{selectedReportToView.hari || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Masa</p>
+                    <p className="font-semibold text-gray-800">{selectedReportToView.masa || '-'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">Tempat</p>
+                    <p className="font-semibold text-gray-800">{selectedReportToView.tempat || '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Guru Hadir */}
+              {selectedReportToView.selectedTeachers && selectedReportToView.selectedTeachers.length > 0 && (
+                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                  <h4 className="text-xs font-black text-gray-500 uppercase mb-3 border-b pb-2">Guru Hadir</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedReportToView.selectedTeachers.map((teacher, idx) => (
+                      <span key={idx} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full border border-green-100">
+                        ✅ {teacher}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Aktiviti */}
+              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <h4 className="text-xs font-black text-gray-500 uppercase mb-3 border-b pb-2">Aktiviti Dijalankan</h4>
+                <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                  {selectedReportToView.aktiviti1 && <li>{selectedReportToView.aktiviti1}</li>}
+                  {selectedReportToView.aktiviti2 && <li>{selectedReportToView.aktiviti2}</li>}
+                  {selectedReportToView.aktiviti3 && <li>{selectedReportToView.aktiviti3}</li>}
+                </ol>
+              </div>
+
+              {/* PiKeBM & Refleksi */}
+              {(selectedReportToView.pikebm || selectedReportToView.refleksi) && (
+                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                  <h4 className="text-xs font-black text-gray-500 uppercase mb-3 border-b pb-2">Impak & Refleksi</h4>
+                  {selectedReportToView.pikebm && (
+                    <div className="mb-3">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">PiKeBM / Impak Murid</p>
+                      <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded">{selectedReportToView.pikebm}</p>
+                    </div>
+                  )}
+                  {selectedReportToView.refleksi && (
+                    <div>
+                      <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Refleksi Guru</p>
+                      <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded">{selectedReportToView.refleksi}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-white border-t border-gray-200 flex gap-3">
+              {selectedReportToView.pdfUrl && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSelectedPdfUrl(selectedReportToView.pdfUrl || '');
+                    setSelectedPdfTitle(`Laporan ${selectedReportToView.perjumpaanKali}`);
+                    setSelectedReportToView(null);
+                  }}
+                  className="flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100"
+                >
+                  📄 Lihat PDF
+                </Button>
+              )}
+              <Button onClick={() => setSelectedReportToView(null)} className="flex-1">Tutup</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* EDIT PASSWORD CONFIRMATION MODAL */}
       {showEditPasswordModal && (
