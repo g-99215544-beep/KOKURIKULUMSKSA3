@@ -29,6 +29,9 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
   // Delete State
   const [chartToDelete, setChartToDelete] = useState<OrgChartData | null>(null);
 
+  // View Detail State
+  const [selectedChartToView, setSelectedChartToView] = useState<OrgChartData | null>(null);
+
   // Form State
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -373,7 +376,11 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
          ) : firebaseCharts.length > 0 ? (
              <div className="space-y-3">
                  {firebaseCharts.map((chart) => (
-                    <div key={chart.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-lg hover:shadow-red-50 transition-all group duration-300">
+                    <div
+                      key={chart.id}
+                      onClick={() => setSelectedChartToView(chart)}
+                      className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-lg hover:shadow-red-50 transition-all group duration-300 cursor-pointer active:scale-[0.99]"
+                    >
                         <div className="flex items-center gap-4 overflow-hidden">
                            <div className="w-12 h-12 rounded-xl bg-red-100 text-red-600 flex items-center justify-center text-2xl shrink-0">
                               👥
@@ -386,23 +393,13 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
                            </div>
                         </div>
                         <div className="flex gap-2">
-                            {/* View PDF Button */}
-                            {chart.pdfUrl && (
-                              <button
-                                  onClick={() => {
-                                      setSelectedPdfUrl(chart.pdfUrl || '');
-                                      setSelectedPdfTitle(`Carta Organisasi ${year}`);
-                                  }}
-                                  className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-blue-500 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all shadow-sm"
-                                  title="Lihat PDF"
-                              >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                              </button>
-                            )}
                             {/* Edit Button - Only for current year */}
                             {year === 2026 && (
                               <button
-                                  onClick={() => handleRequestEdit(chart)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRequestEdit(chart);
+                                  }}
                                   className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-green-500 hover:bg-green-600 hover:text-white hover:border-green-600 transition-all shadow-sm"
                                   title="Edit Carta"
                               >
@@ -412,7 +409,10 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
                             {/* Delete Button - Only for current year */}
                             {year === 2026 && (
                               <button
-                                  onClick={() => setChartToDelete(chart)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setChartToDelete(chart);
+                                  }}
                                   className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm"
                                   title="Padam Carta"
                               >
@@ -448,6 +448,104 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
          onConfirm={handleDeleteConfirm}
          unitPassword={unit.password}
       />
+
+      {/* VIEW CHART DETAIL MODAL */}
+      {selectedChartToView && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedChartToView(null)}></div>
+          <div className="bg-white rounded-3xl w-full max-w-lg relative animate-scaleUp overflow-hidden flex flex-col max-h-[85vh] shadow-2xl">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-600 to-red-500 p-5 text-white shrink-0">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="inline-block px-2 py-1 rounded-md bg-white/20 text-[10px] font-black uppercase tracking-wider mb-2">
+                    👥 Carta
+                  </span>
+                  <h3 className="text-lg font-bold">Carta Organisasi {year}</h3>
+                  <p className="text-xs opacity-90 mt-1">{unit.name}</p>
+                </div>
+                <button onClick={() => setSelectedChartToView(null)} className="text-white/80 hover:text-white text-xl">✕</button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 overflow-y-auto custom-scrollbar flex-1 bg-gray-50 space-y-4">
+              {/* Guru Penasihat */}
+              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <h4 className="text-xs font-black text-gray-500 uppercase mb-3 border-b pb-2">Guru Penasihat</h4>
+                <div className="flex flex-wrap gap-2">
+                  {unit.teachers.map((teacher, idx) => (
+                    <span key={idx} className="text-xs bg-red-50 text-red-700 px-2 py-1 rounded-full border border-red-100">
+                      {teacher}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Jawatankuasa */}
+              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <h4 className="text-xs font-black text-gray-500 uppercase mb-3 border-b pb-2">Jawatankuasa</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-xs text-gray-500 font-bold uppercase">Pengerusi</span>
+                    <span className="font-semibold text-gray-800">{selectedChartToView.pengerusi || '-'}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-xs text-gray-500 font-bold uppercase">Naib Pengerusi</span>
+                    <span className="font-semibold text-gray-800">{selectedChartToView.naibPengerusi || '-'}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-xs text-gray-500 font-bold uppercase">Setiausaha</span>
+                    <span className="font-semibold text-gray-800">{selectedChartToView.setiausaha || '-'}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-xs text-gray-500 font-bold uppercase">Pen. Setiausaha</span>
+                    <span className="font-semibold text-gray-800">{selectedChartToView.penSetiausaha || '-'}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-xs text-gray-500 font-bold uppercase">Bendahari</span>
+                    <span className="font-semibold text-gray-800">{selectedChartToView.bendahari || '-'}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-xs text-gray-500 font-bold uppercase">Pen. Bendahari</span>
+                    <span className="font-semibold text-gray-800">{selectedChartToView.penBendahari || '-'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* AJK */}
+              {selectedChartToView.ajk && (
+                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                  <h4 className="text-xs font-black text-gray-500 uppercase mb-3 border-b pb-2">Ahli Jawatankuasa (AJK)</h4>
+                  <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
+                    {selectedChartToView.ajk.split('\n').filter(a => a.trim()).map((ajk, idx) => (
+                      <li key={idx}>{ajk}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-white border-t border-gray-200 flex gap-3">
+              {selectedChartToView.pdfUrl && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSelectedPdfUrl(selectedChartToView.pdfUrl || '');
+                    setSelectedPdfTitle(`Carta Organisasi ${year}`);
+                    setSelectedChartToView(null);
+                  }}
+                  className="flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100"
+                >
+                  📄 Lihat PDF
+                </Button>
+              )}
+              <Button onClick={() => setSelectedChartToView(null)} className="flex-1">Tutup</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* EDIT PASSWORD CONFIRMATION MODAL */}
       {showEditPasswordModal && (
