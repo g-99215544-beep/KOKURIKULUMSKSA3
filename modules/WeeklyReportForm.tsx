@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Unit, WeeklyReportItem, UnitCategory, WeeklyReportData } from '../types';
+import { Unit, WeeklyReportData } from '../types';
 import { Button } from '../components/ui/Button';
 import { Input, Textarea } from '../components/ui/Input';
 import { gasService } from '../services/gasService';
@@ -21,7 +21,6 @@ interface WeeklyReportFormProps {
 }
 
 export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, onBack }) => {
-  const [reports, setReports] = useState<WeeklyReportItem[]>([]);
   const [firebaseReports, setFirebaseReports] = useState<WeeklyReportData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -31,8 +30,7 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
 
   // Delete State
-  const [fileToDelete, setFileToDelete] = useState<string | null>(null);
-  const [firebaseReportToDelete, setFirebaseReportToDelete] = useState<string | null>(null);
+  const [reportToDelete, setReportToDelete] = useState<WeeklyReportData | null>(null);
 
   // State Borang Baru
   const [showFormModal, setShowFormModal] = useState(false);
@@ -68,16 +66,11 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
 
   const isEditMode = !!editingReport;
 
-  // Fetch Reports Logic - from both Google Drive and Firebase
+  // Fetch Reports Logic - only from Firebase
   const fetchReports = async (force: boolean = false) => {
     if (force) setIsRefreshing(true);
     try {
-      // Fetch from Google Drive (PDFs)
-      const driveData = await gasService.getWeeklyReports(unit.name, year, force);
-      const matchedData = driveData.filter(r => r.year === year);
-      setReports(matchedData);
-
-      // Fetch from Firebase (actual data for editing)
+      // Fetch from Firebase only (source of truth)
       const fbData = await firebaseService.getWeeklyReportsByUnit(unit.name, year);
       setFirebaseReports(fbData);
     } catch (error) {
@@ -89,7 +82,6 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
   };
 
   useEffect(() => {
-    setReports([]);
     setFirebaseReports([]);
     setIsLoading(true);
     fetchReports();
@@ -205,24 +197,24 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
 
   // Handle Deletion
   const handleDeleteConfirm = async () => {
-    if (fileToDelete) {
+    if (reportToDelete?.id) {
       try {
-        // Delete from Google Drive
-        await gasService.deleteFile(fileToDelete, unit.name, year, 'LAPORAN MINGGUAN');
+        // Delete from Firebase (source of truth)
+        await firebaseService.deleteWeeklyReport(reportToDelete.id);
 
-        // Also delete from Firebase if we have the corresponding record
-        if (firebaseReportToDelete) {
-          await firebaseService.deleteWeeklyReport(firebaseReportToDelete);
-        }
+        // Note: PDF di Google Drive akan kekal sebagai arkib/backup
+        // Jika mahu padam PDF juga, boleh uncomment baris di bawah:
+        // if (reportToDelete.pdfUrl) {
+        //   await gasService.deleteFile(reportToDelete.id, unit.name, year, 'LAPORAN MINGGUAN');
+        // }
 
         alert("✅ Laporan berjaya dipadam.");
         fetchReports(true);
       } catch (e: any) {
-        alert("❌ Gagal memadam fail: " + e.message);
+        alert("❌ Gagal memadam laporan: " + e.message);
       }
     }
-    setFileToDelete(null);
-    setFirebaseReportToDelete(null);
+    setReportToDelete(null);
   };
 
   // Form Handlers
@@ -498,15 +490,6 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
     }
   };
 
-  // Find matching Firebase report for a Drive report
-  const findFirebaseReport = (driveReport: WeeklyReportItem): WeeklyReportData | undefined => {
-    return firebaseReports.find(fbr =>
-      fbr.perjumpaanKali === driveReport.activity.split(' - ')[0]?.replace('Laporan ', '') ||
-      fbr.tarikh === driveReport.date ||
-      driveReport.activity.includes(fbr.perjumpaanKali)
-    );
-  };
-
   return (
     <div className="animate-fadeIn pb-24 relative min-h-[500px]">
       {/* HEADER NAVIGASI */}
@@ -549,13 +532,13 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Show Firebase reports (editable) */}
+          {/* Show Firebase reports only */}
           {firebaseReports.map((report) => (
-            <div key={report.id} className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-blue-600 border-gray-100 hover:shadow-md transition-all group relative">
+            <div key={report.id} className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-red-600 border-gray-100 hover:shadow-md transition-all group relative">
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2">
-                   <div className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-black text-[10px] border border-blue-100 uppercase">
-                     Firebase
+                   <div className="bg-red-50 text-red-700 px-2.5 py-1 rounded-lg font-black text-[10px] border border-red-100 uppercase">
+                     {report.perjumpaanKali}
                    </div>
                    <span className="text-[10px] text-gray-400 font-bold">{new Date(report.tarikh).toLocaleDateString('ms-MY')}</span>
                 </div>
@@ -569,7 +552,7 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                         }}
                         className="text-[10px] font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-100 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-1 shadow-sm"
                     >
-                        Lihat PDF 📄
+                        👁️ PDF
                     </button>
                     )}
                     {/* Edit Button - Only for current year */}
@@ -581,21 +564,22 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                           ✏️ Edit
                       </button>
                     )}
+                    {year === 2026 && (
                     <button
                        onClick={(e) => {
                            e.stopPropagation();
-                           setFileToDelete(report.id || '');
-                           setFirebaseReportToDelete(report.id || null);
+                           setReportToDelete(report);
                        }}
                        className="text-[10px] font-bold bg-gray-50 text-gray-500 w-8 h-8 rounded-full border border-gray-200 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all flex items-center justify-center shadow-sm"
                        title="Padam Laporan"
                     >
                        🗑️
                     </button>
+                    )}
                 </div>
               </div>
-              <h3 className="font-bold text-gray-800 text-base mb-1 group-hover:text-blue-700 transition-colors line-clamp-2">
-                {report.perjumpaanKali} - {report.aktiviti1 || 'Aktiviti'}
+              <h3 className="font-bold text-gray-800 text-base mb-1 group-hover:text-red-700 transition-colors line-clamp-2">
+                {report.aktiviti1 || 'Aktiviti'}
               </h3>
               <p className="text-[10px] text-gray-400 font-medium tracking-wide truncate">
                  Hadir: {report.muridHadir}/{report.jumlahMurid} • {report.tempat}
@@ -603,51 +587,7 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
             </div>
           ))}
 
-          {/* Show Drive reports that don't have Firebase data (legacy) */}
-          {reports.filter(r => !firebaseReports.some(fb => fb.tarikh === r.date)).map((report) => (
-            <div key={report.id} className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-red-600 border-gray-100 hover:shadow-md transition-all active:scale-[0.99] group relative">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                   <div className="bg-red-50 text-red-700 px-2.5 py-1 rounded-lg font-black text-[10px] border border-red-100 uppercase">
-                     PDF
-                   </div>
-                   <span className="text-[10px] text-gray-400 font-bold">{new Date(report.date).toLocaleDateString('ms-MY')}</span>
-                </div>
-
-                <div className="flex gap-2">
-                    {report.fileUrl && (
-                    <button
-                        onClick={() => {
-                        setSelectedPdfUrl(report.fileUrl || '');
-                        setSelectedPdfTitle(report.activity);
-                        }}
-                        className="text-[10px] font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-100 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-1 shadow-sm"
-                    >
-                        Lihat PDF 📄
-                    </button>
-                    )}
-                    <button
-                       onClick={(e) => {
-                           e.stopPropagation();
-                           setFileToDelete(report.id);
-                       }}
-                       className="text-[10px] font-bold bg-gray-50 text-gray-500 w-8 h-8 rounded-full border border-gray-200 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all flex items-center justify-center shadow-sm"
-                       title="Padam Laporan"
-                    >
-                       🗑️
-                    </button>
-                </div>
-              </div>
-              <h3 className="font-bold text-gray-800 text-base mb-1 group-hover:text-red-700 transition-colors line-clamp-2">
-                {report.activity}
-              </h3>
-              <p className="text-[10px] text-gray-400 font-medium tracking-wide truncate">
-                 {report.teacherName || report.id}
-              </p>
-            </div>
-          ))}
-
-          {firebaseReports.length === 0 && reports.length === 0 && !isLoading && (
+          {firebaseReports.length === 0 && !isLoading && (
             <div className="py-20 text-center border-2 border-dashed border-gray-200 rounded-3xl bg-gray-50/50 px-8">
                <div className="bg-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                   <span className="text-3xl">📂</span>
@@ -686,11 +626,8 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
 
       {/* DELETE CONFIRMATION MODAL */}
       <DeleteConfirmationModal
-         isOpen={!!fileToDelete}
-         onClose={() => {
-           setFileToDelete(null);
-           setFirebaseReportToDelete(null);
-         }}
+         isOpen={!!reportToDelete}
+         onClose={() => setReportToDelete(null)}
          onConfirm={handleDeleteConfirm}
          unitPassword={unit.password}
       />
