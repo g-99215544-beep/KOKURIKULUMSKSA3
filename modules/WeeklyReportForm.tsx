@@ -4,7 +4,7 @@ import { Unit, WeeklyReportData } from '../types';
 import { Button } from '../components/ui/Button';
 import { Input, Textarea } from '../components/ui/Input';
 import { gasService } from '../services/gasService';
-import { firebaseService } from '../services/firebaseService';
+import { firebaseService, AttendanceRecord } from '../services/firebaseService';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 
@@ -24,6 +24,11 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
   const [firebaseReports, setFirebaseReports] = useState<WeeklyReportData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Attendance Records State (for sync with weekly report)
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [selectedAttendance, setSelectedAttendance] = useState<AttendanceRecord | null>(null);
+  const [attendanceWarning, setAttendanceWarning] = useState<string>('');
 
   // PDF Viewer State
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
@@ -73,9 +78,14 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
   const fetchReports = async (force: boolean = false) => {
     if (force) setIsRefreshing(true);
     try {
-      // Fetch from Firebase only (source of truth)
+      // Fetch weekly reports from Firebase
       const fbData = await firebaseService.getWeeklyReportsByUnit(unit.name, year);
       setFirebaseReports(fbData);
+
+      // Fetch attendance records for this unit (for sync)
+      const attendanceData = await firebaseService.getAttendanceByUnit(unit.name);
+      const filteredByYear = attendanceData.filter(r => r.date.startsWith(year.toString()));
+      setAttendanceRecords(filteredByYear);
     } catch (error) {
       console.error("Failed to load reports", error);
     } finally {
@@ -86,11 +96,55 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
 
   useEffect(() => {
     setFirebaseReports([]);
+    setAttendanceRecords([]);
     setIsLoading(true);
     fetchReports();
     // Auto-select all teachers initially
     setSelectedTeachers(unit.teachers || []);
   }, [unit.name, year]);
+
+  // Find attendance record by week number
+  const findAttendanceByWeek = (weekStr: string): AttendanceRecord | null => {
+    // weekStr could be "Minggu 1", "MINGGU 1", "minggu 1", etc.
+    const normalizedWeek = weekStr.toLowerCase().trim();
+    return attendanceRecords.find(att =>
+      att.week.toLowerCase().trim() === normalizedWeek
+    ) || null;
+  };
+
+  // Handle week selection - auto-fill attendance data
+  const handleWeekChange = (weekValue: string) => {
+    setFormData(prev => ({ ...prev, perjumpaanKali: weekValue }));
+    setAttendanceWarning('');
+    setSelectedAttendance(null);
+
+    if (!weekValue) return;
+
+    const attendance = findAttendanceByWeek(weekValue);
+
+    if (attendance) {
+      // Auto-fill attendance data
+      setSelectedAttendance(attendance);
+      setFormData(prev => ({
+        ...prev,
+        perjumpaanKali: weekValue,
+        tarikh: attendance.date,
+        hari: new Date(attendance.date).toLocaleDateString('ms-MY', { weekday: 'long' }),
+        muridHadir: attendance.presentCount.toString(),
+        jumlahMurid: attendance.totalStudents.toString()
+      }));
+      setAttendanceWarning('');
+    } else {
+      // No attendance found - show warning
+      setAttendanceWarning(`⚠️ Tiada rekod kehadiran untuk ${weekValue}. Sila isi kehadiran terlebih dahulu.`);
+      // Clear attendance-related fields
+      setFormData(prev => ({
+        ...prev,
+        muridHadir: '',
+        jumlahMurid: ''
+      }));
+    }
+  };
 
   // Helper function to get localStorage key for this unit
   const getDraftKey = () => `${DRAFT_KEY_PREFIX}${unit.id}_${year}`;
@@ -143,6 +197,8 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
     setReportImages([null, null, null, null]);
     setSelectedTeachers(unit.teachers || []);
     setEditingReport(null);
+    setSelectedAttendance(null);
+    setAttendanceWarning('');
   };
 
   // Handle Edit Password Confirmation
@@ -183,6 +239,10 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
         });
         setImagePreviews(previews);
       }
+      // Set selected attendance for edit mode (find matching attendance record)
+      const matchingAttendance = findAttendanceByWeek(pendingEditReport.perjumpaanKali || '');
+      setSelectedAttendance(matchingAttendance);
+      setAttendanceWarning('');
       setShowFormModal(true);
     }
 
@@ -897,30 +957,108 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                     {/* Perjumpaan Details */}
                     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                         <h4 className="text-sm font-bold text-gray-700 mb-3 uppercase border-b pb-2">3. Perjumpaan</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Perjumpaan Kali Ke-</label>
-                                <select
-                                    required
-                                    value={formData.perjumpaanKali}
-                                    onChange={e => setFormData({...formData, perjumpaanKali: e.target.value})}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+
+                        {/* Attendance Selection - REQUIRED */}
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Pilih Minggu <span className="text-red-500">*</span>
+                              <span className="text-xs text-gray-400 ml-2">(berdasarkan rekod kehadiran)</span>
+                            </label>
+                            <select
+                                required
+                                value={formData.perjumpaanKali}
+                                onChange={e => handleWeekChange(e.target.value)}
+                                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white ${
+                                  attendanceWarning ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                                }`}
+                                disabled={isEditMode}
+                            >
+                                <option value="">— Pilih Minggu —</option>
+                                {attendanceRecords.length > 0 ? (
+                                  attendanceRecords.map((att) => (
+                                    <option key={att.id} value={att.week}>
+                                      {att.week} - {new Date(att.date).toLocaleDateString('ms-MY')} ({att.presentCount}/{att.totalStudents} hadir)
+                                    </option>
+                                  ))
+                                ) : (
+                                  <option value="" disabled>Tiada rekod kehadiran</option>
+                                )}
+                            </select>
+
+                            {/* Warning if no attendance */}
+                            {attendanceWarning && (
+                              <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                <p className="text-xs text-yellow-700 font-medium">{attendanceWarning}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowFormModal(false);
+                                    onBack();
+                                  }}
+                                  className="mt-2 text-xs bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
                                 >
-                                    <option value="">— Pilih Minggu —</option>
-                                    {[...Array(20)].map((_, i) => (
-                                        <option key={i} value={`Minggu ${i+1}`}>Minggu {i+1}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <Input type="date" label="Tarikh" required value={formData.tarikh} onChange={handleDateChange} />
+                                  → Pergi ke Kehadiran
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Success indicator when attendance is synced */}
+                            {selectedAttendance && !attendanceWarning && (
+                              <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                <p className="text-xs text-green-700 font-medium flex items-center gap-1">
+                                  ✅ Data kehadiran dimuatkan automatik dari rekod kehadiran
+                                </p>
+                              </div>
+                            )}
+
+                            {/* No attendance records warning */}
+                            {attendanceRecords.length === 0 && !isLoading && (
+                              <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                                <p className="text-xs text-red-700 font-bold">⚠️ Tiada rekod kehadiran untuk unit ini.</p>
+                                <p className="text-xs text-red-600 mt-1">Sila isi kehadiran terlebih dahulu sebelum membuat laporan mingguan.</p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowFormModal(false);
+                                    onBack();
+                                  }}
+                                  className="mt-2 text-xs bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                                >
+                                  → Pergi ke Kehadiran
+                                </button>
+                              </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <Input type="date" label="Tarikh (Auto)" required value={formData.tarikh} onChange={handleDateChange} readOnly={!!selectedAttendance} className={selectedAttendance ? 'bg-gray-50' : ''} />
                             <Input label="Hari (Auto)" value={formData.hari} readOnly className="bg-gray-50" />
                             <Input label="Masa" value={formData.masa} onChange={e => setFormData({...formData, masa: e.target.value})} />
+                            <Input label="Tempat" placeholder="Cth: Dewan Sekolah" required value={formData.tempat} onChange={e => setFormData({...formData, tempat: e.target.value})} />
                         </div>
-                        <Input label="Tempat" placeholder="Cth: Dewan Sekolah" required value={formData.tempat} onChange={e => setFormData({...formData, tempat: e.target.value})} />
 
+                        {/* Attendance Stats - Auto-filled and readonly */}
                         <div className="grid grid-cols-2 gap-4 mt-4">
-                            <Input type="number" label="Murid Hadir" required value={formData.muridHadir} onChange={e => setFormData({...formData, muridHadir: e.target.value})} />
-                            <Input type="number" label="Jumlah Murid" required value={formData.jumlahMurid} onChange={e => setFormData({...formData, jumlahMurid: e.target.value})} />
+                            <div>
+                              <Input
+                                type="number"
+                                label="Murid Hadir (Auto)"
+                                required
+                                value={formData.muridHadir}
+                                readOnly
+                                className="bg-green-50 border-green-200 font-bold text-green-700"
+                              />
+                            </div>
+                            <div>
+                              <Input
+                                type="number"
+                                label="Jumlah Murid (Auto)"
+                                required
+                                value={formData.jumlahMurid}
+                                readOnly
+                                className="bg-green-50 border-green-200 font-bold text-green-700"
+                              />
+                            </div>
                         </div>
                     </div>
 
@@ -974,7 +1112,8 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                    form="reportForm"
                    type="submit"
                    isLoading={isSubmitting}
-                   className={isEditMode ? "bg-green-600 hover:bg-green-700 text-white shadow-green-200" : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200"}
+                   disabled={isSubmitting || (!isEditMode && (!selectedAttendance || attendanceRecords.length === 0))}
+                   className={isEditMode ? "bg-green-600 hover:bg-green-700 text-white shadow-green-200" : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 disabled:bg-gray-300 disabled:cursor-not-allowed"}
                  >
                     {isSubmitting ? (loadingText || 'Menghantar...') : (isEditMode ? 'Kemaskini Laporan' : 'Hantar Laporan')}
                  </Button>
