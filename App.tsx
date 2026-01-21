@@ -16,6 +16,7 @@ import { ExternalTab } from './modules/ExternalTab';
 import { AppState, UserRole } from './types';
 import { Button } from './components/ui/Button';
 import { Input } from './components/ui/Input';
+import { AttendanceRecord } from './services/firebaseService';
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>({
@@ -28,6 +29,9 @@ const App: React.FC = () => {
 
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
+
+  // Edit record state for attendance
+  const [editAttendanceRecord, setEditAttendanceRecord] = useState<AttendanceRecord | null>(null);
 
   // Browser back button handling
   useEffect(() => {
@@ -175,20 +179,31 @@ const App: React.FC = () => {
           
           {/* VIEW_ATTENDANCE: List View */}
           {state.view === 'VIEW_ATTENDANCE' && state.selectedUnit && (
-             <AttendanceList 
-                unit={state.selectedUnit} 
-                year={state.selectedYear} 
-                onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))} 
-                onCreateNew={() => setState(prev => ({ ...prev, view: 'FORM_ATTENDANCE' }))}
+             <AttendanceList
+                unit={state.selectedUnit}
+                year={state.selectedYear}
+                onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))}
+                onCreateNew={() => {
+                  setEditAttendanceRecord(null);
+                  setState(prev => ({ ...prev, view: 'FORM_ATTENDANCE' }));
+                }}
+                onEditRecord={(record) => {
+                  setEditAttendanceRecord(record);
+                  setState(prev => ({ ...prev, view: 'FORM_ATTENDANCE' }));
+                }}
              />
           )}
 
           {/* FORM_ATTENDANCE: Form View */}
           {state.view === 'FORM_ATTENDANCE' && state.selectedUnit && (
-             <AttendanceForm 
-                unit={state.selectedUnit} 
-                year={state.selectedYear} 
-                onBack={() => setState(prev => ({ ...prev, view: 'VIEW_ATTENDANCE' }))} // Back goes to List, not Dashboard
+             <AttendanceForm
+                unit={state.selectedUnit}
+                year={state.selectedYear}
+                onBack={() => {
+                  setEditAttendanceRecord(null);
+                  setState(prev => ({ ...prev, view: 'VIEW_ATTENDANCE' }));
+                }}
+                editRecord={editAttendanceRecord}
              />
           )}
 

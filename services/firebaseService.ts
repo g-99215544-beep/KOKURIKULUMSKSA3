@@ -23,6 +23,39 @@ const app = initializeApp(firebaseConfig);
 // Tanpa URL ini, app akan cuba cari data di US (default) dan memulangkan kosong.
 const db = getDatabase(app, "https://kokodata-5d5e2-default-rtdb.asia-southeast1.firebasedatabase.app");
 
+export interface OrgChartData {
+  id?: string;
+  unitId: string;
+  unitName: string;
+  year: number;
+  pengerusi: string;
+  naibPengerusi: string;
+  setiausaha: string;
+  penSetiausaha: string;
+  bendahari: string;
+  penBendahari: string;
+  ajk: string;
+  pdfUrl?: string;
+  timestamp?: any;
+  updatedAt?: any;
+}
+
+export interface AnnualPlanData {
+  id?: string;
+  unitId: string;
+  unitName: string;
+  year: number;
+  planItems: {
+    month: string;
+    date: string;
+    activity: string;
+    remarks: string;
+  }[];
+  pdfUrl?: string;
+  timestamp?: any;
+  updatedAt?: any;
+}
+
 export interface AttendanceRecord {
   id?: string;
   unitId: string;
@@ -85,6 +118,35 @@ export const firebaseService = {
     }
   },
 
+  // Update existing attendance record
+  updateAttendance: async (recordId: string, record: AttendanceRecord) => {
+    try {
+      const attendanceRef = ref(db, `kehadiran_murid/${recordId}`);
+      await update(attendanceRef, {
+        ...record,
+        updatedAt: serverTimestamp()
+      });
+      console.log("Kehadiran berjaya dikemaskini:", recordId);
+      return { success: true, id: recordId };
+    } catch (e) {
+      console.error("Ralat kemaskini kehadiran:", e);
+      throw e;
+    }
+  },
+
+  // Delete attendance record
+  deleteAttendance: async (recordId: string) => {
+    try {
+      const attendanceRef = ref(db, `kehadiran_murid/${recordId}`);
+      await remove(attendanceRef);
+      console.log("Kehadiran dipadam:", recordId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal padam kehadiran:", e);
+      throw e;
+    }
+  },
+
   // Weekly Report Functions
   submitWeeklyReport: async (report: WeeklyReportData) => {
     try {
@@ -141,6 +203,22 @@ export const firebaseService = {
       return { success: true };
     } catch (e) {
       console.error("Gagal kemaskini PDF URL:", e);
+      throw e;
+    }
+  },
+
+  // Update existing weekly report
+  updateWeeklyReport: async (reportId: string, report: WeeklyReportData) => {
+    try {
+      const reportRef = ref(db, `laporan_mingguan/${reportId}`);
+      await update(reportRef, {
+        ...report,
+        updatedAt: serverTimestamp()
+      });
+      console.log("Laporan mingguan berjaya dikemaskini:", reportId);
+      return { success: true, id: reportId };
+    } catch (e) {
+      console.error("Ralat kemaskini laporan:", e);
       throw e;
     }
   },
@@ -266,6 +344,140 @@ export const firebaseService = {
       return { success: true };
     } catch (e) {
       console.error("Failed to delete achievement:", e);
+      throw e;
+    }
+  },
+
+  // ======= CARTA ORGANISASI FUNCTIONS =======
+  saveOrgChart: async (data: OrgChartData) => {
+    try {
+      const newRef = push(ref(db, 'carta_organisasi'));
+      await set(newRef, {
+        ...data,
+        timestamp: serverTimestamp()
+      });
+      console.log("Carta organisasi disimpan:", newRef.key);
+      return { success: true, id: newRef.key };
+    } catch (e) {
+      console.error("Ralat simpan carta:", e);
+      throw e;
+    }
+  },
+
+  updateOrgChart: async (chartId: string, data: OrgChartData) => {
+    try {
+      const chartRef = ref(db, `carta_organisasi/${chartId}`);
+      await update(chartRef, {
+        ...data,
+        updatedAt: serverTimestamp()
+      });
+      console.log("Carta organisasi dikemaskini:", chartId);
+      return { success: true, id: chartId };
+    } catch (e) {
+      console.error("Ralat kemaskini carta:", e);
+      throw e;
+    }
+  },
+
+  getOrgChartByUnit: async (unitName: string, year: number): Promise<OrgChartData[]> => {
+    try {
+      const dbRef = ref(db, 'carta_organisasi');
+      const snapshot = await get(dbRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const records: OrgChartData[] = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+
+        return records.filter(r =>
+          r.unitName?.toLowerCase().trim() === unitName.toLowerCase().trim() &&
+          r.year === year
+        );
+      }
+      return [];
+    } catch (e) {
+      console.error("Gagal ambil carta:", e);
+      return [];
+    }
+  },
+
+  deleteOrgChart: async (chartId: string) => {
+    try {
+      const chartRef = ref(db, `carta_organisasi/${chartId}`);
+      await remove(chartRef);
+      console.log("Carta organisasi dipadam:", chartId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal padam carta:", e);
+      throw e;
+    }
+  },
+
+  // ======= RANCANGAN TAHUNAN FUNCTIONS =======
+  saveAnnualPlan: async (data: AnnualPlanData) => {
+    try {
+      const newRef = push(ref(db, 'rancangan_tahunan'));
+      await set(newRef, {
+        ...data,
+        timestamp: serverTimestamp()
+      });
+      console.log("Rancangan tahunan disimpan:", newRef.key);
+      return { success: true, id: newRef.key };
+    } catch (e) {
+      console.error("Ralat simpan rancangan:", e);
+      throw e;
+    }
+  },
+
+  updateAnnualPlan: async (planId: string, data: AnnualPlanData) => {
+    try {
+      const planRef = ref(db, `rancangan_tahunan/${planId}`);
+      await update(planRef, {
+        ...data,
+        updatedAt: serverTimestamp()
+      });
+      console.log("Rancangan tahunan dikemaskini:", planId);
+      return { success: true, id: planId };
+    } catch (e) {
+      console.error("Ralat kemaskini rancangan:", e);
+      throw e;
+    }
+  },
+
+  getAnnualPlanByUnit: async (unitName: string, year: number): Promise<AnnualPlanData[]> => {
+    try {
+      const dbRef = ref(db, 'rancangan_tahunan');
+      const snapshot = await get(dbRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const records: AnnualPlanData[] = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+
+        return records.filter(r =>
+          r.unitName?.toLowerCase().trim() === unitName.toLowerCase().trim() &&
+          r.year === year
+        );
+      }
+      return [];
+    } catch (e) {
+      console.error("Gagal ambil rancangan:", e);
+      return [];
+    }
+  },
+
+  deleteAnnualPlan: async (planId: string) => {
+    try {
+      const planRef = ref(db, `rancangan_tahunan/${planId}`);
+      await remove(planRef);
+      console.log("Rancangan tahunan dipadam:", planId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal padam rancangan:", e);
       throw e;
     }
   }

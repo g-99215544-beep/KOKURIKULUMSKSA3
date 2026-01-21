@@ -11,24 +11,27 @@ interface AttendanceFormProps {
   unit: Unit;
   year: number;
   onBack: () => void;
+  editRecord?: AttendanceRecord | null; // Optional record to edit
 }
 
-export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBack }) => {
+export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBack, editRecord }) => {
   const [week, setWeek] = useState('Minggu 1');
   const [date, setDate] = useState('');
   const [day, setDay] = useState('');
-  
+
   // checkedStudents = Pelajar yang TIDAK HADIR
   const [checkedStudents, setCheckedStudents] = useState<Record<string, Set<string>>>({});
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusText, setStatusText] = useState('SIMPAN');
   const [unitStudents, setUnitStudents] = useState<Record<string, string[]>>({});
 
+  const isEditMode = !!editRecord;
+
   useEffect(() => {
     // Cari data pelajar berdasarkan nama unit atau alias
-    const dbName = Object.keys(STUDENT_DATABASE).find(key => 
-      key.toLowerCase() === unit.name.toLowerCase() || 
+    const dbName = Object.keys(STUDENT_DATABASE).find(key =>
+      key.toLowerCase() === unit.name.toLowerCase() ||
       unit.aliases?.some(alias => key.toLowerCase().includes(alias.toLowerCase()))
     );
 
@@ -38,16 +41,45 @@ export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBa
       Object.keys(STUDENT_DATABASE[dbName]).forEach(className => {
         initialChecked[className] = new Set();
       });
+
+      // If editing, pre-fill the absent students
+      if (editRecord && editRecord.classes) {
+        editRecord.classes.forEach(classData => {
+          const normalizedClassName = Object.keys(STUDENT_DATABASE[dbName]).find(
+            cn => cn.toLowerCase() === classData.className.toLowerCase()
+          ) || classData.className;
+
+          if (!initialChecked[normalizedClassName]) {
+            initialChecked[normalizedClassName] = new Set();
+          }
+
+          classData.students.forEach(student => {
+            if (student.status === 'TIDAK HADIR') {
+              initialChecked[normalizedClassName].add(student.name);
+            }
+          });
+        });
+      }
+
       setCheckedStudents(initialChecked);
     }
 
-    // Set tarikh hari ini secara automatik
-    const today = new Date();
-    const dateStr = today.toISOString().split('T')[0];
-    const days = ["Ahad", "Isnin", "Selasa", "Rabu", "Khamis", "Jumaat", "Sabtu"];
-    setDate(dateStr);
-    setDay(days[today.getDay()]);
-  }, [unit]);
+    // Pre-fill form data if editing
+    if (editRecord) {
+      setWeek(editRecord.week);
+      setDate(editRecord.date);
+      const d = new Date(editRecord.date);
+      const days = ["Ahad", "Isnin", "Selasa", "Rabu", "Khamis", "Jumaat", "Sabtu"];
+      setDay(days[d.getDay()] || '');
+    } else {
+      // Set tarikh hari ini secara automatik for new record
+      const today = new Date();
+      const dateStr = today.toISOString().split('T')[0];
+      const days = ["Ahad", "Isnin", "Selasa", "Rabu", "Khamis", "Jumaat", "Sabtu"];
+      setDate(dateStr);
+      setDay(days[today.getDay()]);
+    }
+  }, [unit, editRecord]);
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const dateVal = e.target.value;
@@ -61,9 +93,9 @@ export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBa
     setCheckedStudents(prev => {
       const classSet = new Set(prev[className]);
       if (classSet.has(studentName)) {
-        classSet.delete(studentName); 
+        classSet.delete(studentName);
       } else {
-        classSet.add(studentName); 
+        classSet.add(studentName);
       }
       return { ...prev, [className]: classSet };
     });
@@ -74,9 +106,9 @@ export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBa
          const classSet = new Set(prev[className]);
          const students = unitStudents[className];
          if (allAbsent) {
-             classSet.clear(); 
+             classSet.clear();
          } else {
-             students.forEach(s => classSet.add(s)); 
+             students.forEach(s => classSet.add(s));
          }
          return { ...prev, [className]: classSet };
      });
@@ -102,23 +134,23 @@ export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBa
     let csvContent = `REKOD KEHADIRAN: ${unit.name.toUpperCase()}\n`;
     csvContent += `MINGGU: ${week}, TARIKH: ${date} (${day})\n`;
     csvContent += `KEHADIRAN: ${getPresentCount()} / ${getTotalStudents()}\n\n`;
-    
+
     // Header Column
     csvContent += "BIL,NAMA MURID,STATUS,CATATAN\n";
 
     classesData.forEach((cls) => {
       // Jarak sebelum kelas baru
       csvContent += "\n";
-      
+
       // HEADER KELAS (Dalam column B supaya jelas kelihatan sebagai tajuk)
-      csvContent += `,${cls.className.toUpperCase()},,\n`; 
+      csvContent += `,${cls.className.toUpperCase()},,\n`;
 
       cls.students.forEach((std: any, index: number) => {
         // Handle koma dalam nama
         const safeName = std.name.includes(',') ? `"${std.name}"` : std.name;
         // Status H/TH
         const statusSymbol = std.status === 'HADIR' ? 'H' : 'TH';
-        
+
         csvContent += `${index + 1},${safeName},${statusSymbol},\n`;
       });
     });
@@ -132,10 +164,14 @@ export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBa
     const presentCount = getPresentCount();
     const totalStudents = getTotalStudents();
 
-    if (confirm(`Sahkan kehadiran?\nHadir: ${presentCount} / ${totalStudents}`)) {
+    const confirmMessage = isEditMode
+      ? `Sahkan kemaskini kehadiran?\nHadir: ${presentCount} / ${totalStudents}`
+      : `Sahkan kehadiran?\nHadir: ${presentCount} / ${totalStudents}`;
+
+    if (confirm(confirmMessage)) {
         setIsSubmitting(true);
-        setStatusText('Menyimpan DB...');
-        
+        setStatusText(isEditMode ? 'Mengemaskini DB...' : 'Menyimpan DB...');
+
         const classesData = Object.keys(unitStudents).map(className => ({
             className,
             students: unitStudents[className].map(student => ({
@@ -157,22 +193,33 @@ export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBa
         };
 
         try {
-            // 1. Simpan ke Firebase (Region Asia)
-            await firebaseService.submitAttendance(record);
-            
-            // 2. Jana Excel/CSV ke Google Drive
-            setStatusText('Menjana Excel...');
-            const csvContent = generateFormattedCSV(classesData);
-            const csvBlob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const fileName = `Kehadiran_${unit.name}_${week}_${date}.csv`;
-            const file = new File([csvBlob], fileName, { type: 'text/csv' });
+            if (isEditMode && editRecord?.id) {
+              // Update existing record
+              await firebaseService.updateAttendance(editRecord.id, record);
+            } else {
+              // Create new record
+              await firebaseService.submitAttendance(record);
 
-            await gasService.uploadFile(file, `Kehadiran ${week} (${date})`, unit.name, year, 'KEHADIRAN');
+              // 2. Jana Excel/CSV ke Google Drive (only for new records)
+              setStatusText('Menjana Excel...');
+              const csvContent = generateFormattedCSV(classesData);
+              const csvBlob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+              const fileName = `Kehadiran_${unit.name}_${week}_${date}.csv`;
+              const file = new File([csvBlob], fileName, { type: 'text/csv' });
 
-            alert("✅ Data berjaya disimpan & dimuat naik ke Drive!");
+              await gasService.uploadFile(file, `Kehadiran ${week} (${date})`, unit.name, year, 'KEHADIRAN');
+            }
+
+            const successMessage = isEditMode
+              ? "✅ Kehadiran berjaya dikemaskini!"
+              : "✅ Data berjaya disimpan & dimuat naik ke Drive!";
+            alert(successMessage);
             onBack();
         } catch (e) {
-            alert("❌ Gagal menyimpan. Sila semak sambungan internet.");
+            const errorMessage = isEditMode
+              ? "❌ Gagal mengemaskini. Sila semak sambungan internet."
+              : "❌ Gagal menyimpan. Sila semak sambungan internet.";
+            alert(errorMessage);
             console.error(e);
         } finally {
             setIsSubmitting(false);
@@ -186,8 +233,15 @@ export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBa
        <div className="flex items-center justify-between mb-6">
         <Button variant="ghost" onClick={onBack} className="mr-2">← Kembali</Button>
         <div className="text-right">
-          <h2 className="text-xl font-bold text-gray-800">Borang Kehadiran</h2>
+          <h2 className="text-xl font-bold text-gray-800">
+            {isEditMode ? 'Edit Kehadiran' : 'Borang Kehadiran'}
+          </h2>
           <p className="text-xs font-bold text-red-600 uppercase">{unit.name} • {year}</p>
+          {isEditMode && (
+            <span className="inline-block mt-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">
+              MOD EDIT
+            </span>
+          )}
         </div>
       </div>
 
@@ -205,7 +259,7 @@ export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBa
                 {day && <p className="text-xs text-red-600 font-bold mt-1 text-right">{day}</p>}
             </div>
         </div>
-        
+
         <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
             <div>
                 <p className="text-xs text-gray-400 font-bold uppercase">Hadir</p>
@@ -232,12 +286,12 @@ export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBa
                 return (
                     <div key={className} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                         {/* CLASS HEADER - Design seperti dalam Screenshot */}
-                        <div 
+                        <div
                             className={`px-4 py-3 flex justify-between items-center cursor-pointer transition-colors ${
-                                className.includes('BESTARI') ? 'bg-cyan-50 border-l-4 border-cyan-400' : 
+                                className.includes('BESTARI') ? 'bg-cyan-50 border-l-4 border-cyan-400' :
                                 className.includes('CEMERLANG') ? 'bg-yellow-50 border-l-4 border-yellow-400' :
                                 'bg-gray-50 border-l-4 border-gray-400'
-                            }`} 
+                            }`}
                             onClick={() => toggleClass(className, isAllAbsent)}
                         >
                             <h4 className="font-black text-gray-800 text-sm uppercase tracking-wide">{className}</h4>
@@ -278,8 +332,12 @@ export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBa
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-md border-t border-gray-200 flex justify-center z-40">
         <div className="w-full max-w-5xl flex gap-3">
              <Button variant="secondary" className="flex-1" onClick={onBack} disabled={isSubmitting}>Batal</Button>
-             <Button className="flex-[2] bg-green-600 hover:bg-green-700 shadow-lg shadow-green-200" onClick={handleSubmit} isLoading={isSubmitting}>
-                {isSubmitting ? statusText : `SIMPAN REKOD`}
+             <Button
+               className={`flex-[2] shadow-lg ${isEditMode ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-200' : 'bg-green-600 hover:bg-green-700 shadow-green-200'}`}
+               onClick={handleSubmit}
+               isLoading={isSubmitting}
+             >
+                {isSubmitting ? statusText : (isEditMode ? 'KEMASKINI REKOD' : 'SIMPAN REKOD')}
              </Button>
         </div>
       </div>
