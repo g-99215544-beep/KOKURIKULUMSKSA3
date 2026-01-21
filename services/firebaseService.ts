@@ -275,6 +275,21 @@ export const firebaseService = {
     }
   },
 
+  updateMeetingSchedule: async (scheduleId: string, schedule: MeetingSchedule) => {
+    try {
+      const scheduleRef = ref(db, `meeting_schedules/${scheduleId}`);
+      await update(scheduleRef, {
+        ...schedule,
+        updatedAt: Date.now()
+      });
+      console.log("Jadual dikemaskini:", scheduleId);
+      return { success: true, id: scheduleId };
+    } catch (e) {
+      console.error("Gagal kemaskini jadual:", e);
+      throw e;
+    }
+  },
+
   deleteMeetingSchedule: async (scheduleId: string) => {
     try {
       const scheduleRef = ref(db, `meeting_schedules/${scheduleId}`);
