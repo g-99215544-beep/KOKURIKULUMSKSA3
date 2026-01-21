@@ -209,6 +209,91 @@ export const firebaseService = {
     }
   },
 
+  updateMeetingSchedule: async (scheduleId: string, schedule: Partial<MeetingSchedule>) => {
+    try {
+      const scheduleRef = ref(db, `meeting_schedules/${scheduleId}`);
+      await update(scheduleRef, schedule);
+      console.log("Jadual dikemaskini:", scheduleId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal kemaskini jadual:", e);
+      throw e;
+    }
+  },
+
+  // Bulk seed 1M1S schedules for 2026
+  seed1M1SSchedules2026: async () => {
+    try {
+      const schedules: MeetingSchedule[] = [
+        // UB (Unit Beruniform) - 13 weeks
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 1, meetingDate: '2026-01-21', deadline: '2026-01-28', year: 2026 },
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 2, meetingDate: '2026-02-04', deadline: '2026-02-11', year: 2026 },
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 3, meetingDate: '2026-02-25', deadline: '2026-03-04', year: 2026 },
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 4, meetingDate: '2026-03-11', deadline: '2026-03-18', year: 2026 },
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 5, meetingDate: '2026-06-10', deadline: '2026-06-24', year: 2026 },
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 6, meetingDate: '2026-07-01', deadline: '2026-07-08', year: 2026 },
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 7, meetingDate: '2026-07-15', deadline: '2026-07-22', year: 2026 },
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 8, meetingDate: '2026-07-29', deadline: '2026-08-05', year: 2026 },
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 9, meetingDate: '2026-08-12', deadline: '2026-08-19', year: 2026 },
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 10, meetingDate: '2026-08-26', deadline: '2026-09-09', year: 2026 },
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 11, meetingDate: '2026-09-23', deadline: '2026-09-30', year: 2026 },
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 12, meetingDate: '2026-10-07', deadline: '2026-10-14', year: 2026 },
+        { category: 'UNIT_BERUNIFORM' as UnitCategory, weekNumber: 13, meetingDate: '2026-10-21', deadline: '2026-10-28', year: 2026 },
+
+        // KP (Kelab Persatuan) - 13 weeks
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 1, meetingDate: '2026-01-28', deadline: '2026-02-04', year: 2026 },
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 2, meetingDate: '2026-02-11', deadline: '2026-02-25', year: 2026 },
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 3, meetingDate: '2026-03-04', deadline: '2026-03-11', year: 2026 },
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 4, meetingDate: '2026-03-18', deadline: '2026-06-10', year: 2026 },
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 5, meetingDate: '2026-06-24', deadline: '2026-07-01', year: 2026 },
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 6, meetingDate: '2026-07-08', deadline: '2026-07-15', year: 2026 },
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 7, meetingDate: '2026-07-22', deadline: '2026-07-29', year: 2026 },
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 8, meetingDate: '2026-08-05', deadline: '2026-08-12', year: 2026 },
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 9, meetingDate: '2026-08-19', deadline: '2026-08-26', year: 2026 },
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 10, meetingDate: '2026-09-09', deadline: '2026-09-23', year: 2026 },
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 11, meetingDate: '2026-09-30', deadline: '2026-10-07', year: 2026 },
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 12, meetingDate: '2026-10-14', deadline: '2026-10-21', year: 2026 },
+        { category: 'KELAB_PERSATUAN' as UnitCategory, weekNumber: 13, meetingDate: '2026-10-28', deadline: '2026-11-04', year: 2026 },
+      ];
+
+      // Save all schedules
+      const promises = schedules.map(schedule => {
+        const schedulesRef = ref(db, 'meeting_schedules');
+        const newScheduleRef = push(schedulesRef);
+        return set(newScheduleRef, {
+          ...schedule,
+          createdAt: Date.now()
+        });
+      });
+
+      await Promise.all(promises);
+      console.log("✅ 1M1S 2026 schedules seeded successfully!");
+      return { success: true, count: schedules.length };
+    } catch (e) {
+      console.error("Failed to seed 1M1S schedules:", e);
+      throw e;
+    }
+  },
+
+  // Check if 2026 schedules already exist
+  check2026SchedulesExist: async (): Promise<boolean> => {
+    try {
+      const dbRef = ref(db, 'meeting_schedules');
+      const snapshot = await get(dbRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const schedules = Object.values(data) as MeetingSchedule[];
+        const has2026 = schedules.some(s => s.year === 2026);
+        return has2026;
+      }
+      return false;
+    } catch (e) {
+      console.error("Failed to check 2026 schedules:", e);
+      return false;
+    }
+  },
+
   // Achievement/Hall of Fame Functions
   saveAchievement: async (achievement: Omit<Achievement, 'id'> | Achievement) => {
     try {
