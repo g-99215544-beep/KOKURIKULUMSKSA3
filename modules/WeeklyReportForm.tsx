@@ -537,7 +537,11 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
         <div className="space-y-4">
           {/* Show Firebase reports only */}
           {firebaseReports.map((report) => (
-            <div key={report.id} className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-red-600 border-gray-100 hover:shadow-md transition-all group relative">
+            <div
+              key={report.id}
+              onClick={() => setSelectedReportToView(report)}
+              className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-red-600 border-gray-100 hover:shadow-md transition-all group relative cursor-pointer active:scale-[0.99]"
+            >
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center gap-2">
                    <div className="bg-red-50 text-red-700 px-2.5 py-1 rounded-lg font-black text-[10px] border border-red-100 uppercase">
@@ -547,17 +551,13 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                 </div>
 
                 <div className="flex gap-2">
-                    {/* View Button - Always visible */}
-                    <button
-                        onClick={() => setSelectedReportToView(report)}
-                        className="text-[10px] font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-100 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-1 shadow-sm"
-                    >
-                        👁️ Lihat
-                    </button>
                     {/* Edit Button - Only for current year */}
                     {year === 2026 && (
                       <button
-                         onClick={() => handleRequestEdit(report)}
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           handleRequestEdit(report);
+                         }}
                          className="text-[10px] font-bold bg-green-50 text-green-700 px-3 py-1.5 rounded-full border border-green-100 hover:bg-green-600 hover:text-white transition-all flex items-center gap-1 shadow-sm"
                       >
                           ✏️ Edit
