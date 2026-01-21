@@ -94,6 +94,40 @@ export interface MeetingSchedule {
   createdAt?: number;
 }
 
+export interface OrgChartData {
+  id?: string;
+  unitId: string;
+  unitName: string;
+  unitCategory: string;
+  year: number;
+  pengerusi: string;
+  naibPengerusi: string;
+  setiausaha: string;
+  penSetiausaha: string;
+  bendahari: string;
+  penBendahari: string;
+  ajk: string; // Multi-line text (newline separated)
+  teachers: string[]; // Auto-populated from unit
+  pdfUrl?: string;
+  timestamp?: any;
+}
+
+export interface AnnualPlanData {
+  id?: string;
+  unitId: string;
+  unitName: string;
+  unitCategory: string;
+  year: number;
+  planItems: {
+    month: string;
+    date: string;
+    activity: string;
+    remarks: string;
+  }[];
+  pdfUrl?: string;
+  timestamp?: any;
+}
+
 export interface ComplianceStatus {
   unitId: string;
   unitName: string;

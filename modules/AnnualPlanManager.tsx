@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { Unit } from '../types';
+import { Unit, AnnualPlanData } from '../types';
 import { Button } from '../components/ui/Button';
 import { Input, Textarea } from '../components/ui/Input';
 import { gasService } from '../services/gasService';
+import { firebaseService } from '../services/firebaseService';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 
@@ -23,27 +24,33 @@ interface PlanItem {
   remarks: string;
 }
 
+interface AnnualPlanRecord extends AnnualPlanData {
+  driveUrl?: string;
+  driveName?: string;
+  driveDate?: string;
+}
+
 const MONTHS = [
-  "Januari", "Februari", "Mac", "April", "Mei", "Jun", 
+  "Januari", "Februari", "Mac", "April", "Mei", "Jun",
   "Julai", "Ogos", "September", "Oktober", "November", "Disember"
 ];
 
 export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year, onBack }) => {
-  const [files, setFiles] = useState<any[]>([]);
+  const [annualPlans, setAnnualPlans] = useState<AnnualPlanRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // PDF View State
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
 
   // Delete State
-  const [fileToDelete, setFileToDelete] = useState<string | null>(null);
+  const [planToDelete, setPlanToDelete] = useState<AnnualPlanRecord | null>(null);
 
   // Form State
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingText, setLoadingText] = useState('');
-  
+
   // Dynamic Table State
   const [planItems, setPlanItems] = useState<PlanItem[]>([
     { month: 'Januari', date: '', activity: 'Mesyuarat Agung Tahunan', remarks: 'Semua Guru & Murid' },
@@ -51,13 +58,73 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
   ]);
 
   const folderType = 'RANCANGAN TAHUNAN';
+  const DRAFT_KEY = `annual_plan_draft_${unit.id}_${year}`;
 
-  // Load existing files
-  const loadFiles = async () => {
+  // Auto-save draft to localStorage
+  useEffect(() => {
+    if (showModal) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(planItems));
+    }
+  }, [planItems, showModal, DRAFT_KEY]);
+
+  // Load draft when modal opens
+  useEffect(() => {
+    if (showModal) {
+      const draft = localStorage.getItem(DRAFT_KEY);
+      if (draft) {
+        try {
+          setPlanItems(JSON.parse(draft));
+        } catch (e) {
+          console.error("Gagal load draft:", e);
+        }
+      }
+    }
+  }, [showModal, DRAFT_KEY]);
+
+  // Load existing annual plans from Firebase
+  const loadAnnualPlans = async () => {
     setIsLoading(true);
     try {
-      const data = await gasService.getModuleFiles(unit.name, year, folderType);
-      setFiles(Array.isArray(data) ? data : []);
+      // Load from Firebase
+      const firebaseData = await firebaseService.getAnnualPlansByUnit(unit.name, year);
+
+      // Load from Google Drive for backward compatibility
+      const driveFiles = await gasService.getModuleFiles(unit.name, year, folderType);
+
+      // Merge data: prioritize Firebase data
+      const merged: AnnualPlanRecord[] = firebaseData.map(fb => {
+        const driveMatch = driveFiles.find((df: any) =>
+          df.description && df.description.includes('Rancangan Tahunan')
+        );
+
+        return {
+          ...fb,
+          driveUrl: fb.pdfUrl || driveMatch?.url,
+          driveName: driveMatch?.name,
+          driveDate: driveMatch?.date
+        };
+      });
+
+      // Add any Drive-only files (legacy data)
+      driveFiles.forEach((df: any) => {
+        const existsInFirebase = merged.some(m => m.pdfUrl === df.url);
+        if (!existsInFirebase) {
+          merged.push({
+            id: df.id,
+            unitId: unit.id,
+            unitName: unit.name,
+            unitCategory: unit.category,
+            year: year,
+            planItems: [],
+            pdfUrl: df.url,
+            driveUrl: df.url,
+            driveName: df.name,
+            driveDate: df.date
+          });
+        }
+      });
+
+      setAnnualPlans(merged);
     } catch (e) {
       console.error(e);
     } finally {
@@ -66,19 +133,33 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
   };
 
   useEffect(() => {
-    loadFiles();
+    loadAnnualPlans();
   }, [unit, year]);
 
-  // Handle Deletion
+  // Handle Deletion with Firebase
   const handleDeleteConfirm = async () => {
-    if (fileToDelete) {
-        try {
-            await gasService.deleteFile(fileToDelete, unit.name, year, folderType);
-            alert("✅ Rancangan berjaya dipadam.");
-            loadFiles();
-        } catch (e: any) {
-            alert("❌ Gagal memadam fail: " + e.message);
+    if (planToDelete) {
+      try {
+        // Delete from Firebase if ID exists
+        if (planToDelete.id && planToDelete.id.startsWith('-')) {
+          await firebaseService.deleteAnnualPlan(planToDelete.id);
         }
+
+        // Delete from Google Drive if exists
+        if (planToDelete.driveUrl) {
+          const driveId = planToDelete.driveUrl.split('/')[5]; // Extract file ID from URL
+          if (driveId) {
+            await gasService.deleteFile(driveId, unit.name, year, folderType);
+          }
+        }
+
+        alert("✅ Rancangan berjaya dipadam.");
+        loadAnnualPlans();
+      } catch (e: any) {
+        alert("❌ Gagal memadam fail: " + e.message);
+      } finally {
+        setPlanToDelete(null);
+      }
     }
   };
 
@@ -104,7 +185,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
   const createPDFBlob = async (): Promise<Blob> => {
      const content = `
       <div style="font-family: Arial, sans-serif; padding: 40px; color: #000; max-width: 800px; margin: 0 auto;">
-        
+
         <!-- Header -->
         <div style="text-align: center; margin-bottom: 30px;">
           <h2 style="margin: 0; font-size: 14px; font-weight: bold;">RANCANGAN TAHUNAN AKTIVITI KOKURIKULUM TAHUN ${year}</h2>
@@ -181,27 +262,65 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setLoadingText('Menjana PDF...');
 
     try {
+      // STEP 1: Save to Firebase FIRST (Data Protection)
+      setLoadingText('💾 Menyimpan data ke Firebase...');
+
+      const annualPlanData: AnnualPlanData = {
+        unitId: unit.id,
+        unitName: unit.name,
+        unitCategory: unit.category,
+        year: year,
+        planItems: planItems
+      };
+
+      const firebaseResult = await firebaseService.submitAnnualPlan(annualPlanData);
+      const firebaseId = firebaseResult.id!;
+      console.log("✅ Data selamat di Firebase:", firebaseId);
+
+      // STEP 2: Generate PDF
+      setLoadingText('📄 Menjana PDF...');
       const pdfBlob = await createPDFBlob();
       const fileName = `RancanganTahunan_${year}_${unit.name.replace(/\s/g, '')}.pdf`;
       const file = new File([pdfBlob], fileName, { type: "application/pdf" });
 
-      setLoadingText('Memuat naik...');
-      await gasService.uploadFile(file, `Rancangan Tahunan ${year}`, unit.name, year, folderType);
+      // STEP 3: Upload to Google Drive
+      setLoadingText('☁️ Memuat naik ke Google Drive...');
+      const uploadResult = await gasService.uploadFile(file, `Rancangan Tahunan ${year}`, unit.name, year, folderType);
 
-      alert("✅ Rancangan Tahunan Berjaya Disimpan!");
+      // STEP 4: Update Firebase with PDF URL
+      if (uploadResult && uploadResult.url) {
+        setLoadingText('🔗 Mengemas kini pautan PDF...');
+        await firebaseService.updateAnnualPlanPdfUrl(firebaseId, uploadResult.url);
+        console.log("✅ PDF URL dikemas kini");
+      }
+
+      // STEP 5: Clear draft and reset form
+      localStorage.removeItem(DRAFT_KEY);
+      alert("✅ Rancangan Tahunan Berjaya Disimpan ke Firebase & Google Drive!");
       setShowModal(false);
-      // Reset to default
       setPlanItems([{ month: 'Januari', date: '', activity: 'Mesyuarat Agung Tahunan', remarks: 'Semua Guru & Murid' }]);
-      loadFiles();
+      loadAnnualPlans();
     } catch (error: any) {
-      alert("Ralat: " + error.message);
+      console.error("❌ Ralat:", error);
+      alert("❌ Ralat: " + error.message + "\n\nData anda masih selamat dalam borang. Sila cuba lagi.");
     } finally {
       setIsSubmitting(false);
       setLoadingText('');
     }
+  };
+
+  // Warning before closing modal with unsaved data
+  const handleCloseModal = () => {
+    const hasData = planItems.some(item =>
+      item.month || item.date || item.activity || item.remarks
+    );
+    if (hasData && !isSubmitting) {
+      const confirm = window.confirm("⚠️ Anda mempunyai data yang belum disimpan. Tutup borang?");
+      if (!confirm) return;
+    }
+    setShowModal(false);
   };
 
   return (
@@ -217,10 +336,10 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
               <p className="text-[10px] text-orange-600 font-bold uppercase tracking-widest mt-1">{unit.name} • {year}</p>
             </div>
         </div>
-        
+
         {/* ADD BUTTON */}
-        <button 
-           onClick={() => setShowModal(true)} 
+        <button
+           onClick={() => setShowModal(true)}
            className="w-10 h-10 bg-orange-500 hover:bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-orange-200 active:scale-95 transition-all group"
            title="Buat Rancangan Tahunan"
         >
@@ -235,33 +354,37 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-orange-100 border-t-orange-600"></div>
                  <p className="text-[10px] text-gray-400 mt-4 font-bold uppercase tracking-widest animate-pulse">Memuatkan Fail...</p>
              </div>
-         ) : files.length > 0 ? (
+         ) : annualPlans.length > 0 ? (
              <div className="space-y-3">
-                 {files.map((f, idx) => (
+                 {annualPlans.map((plan, idx) => (
                     <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-lg hover:shadow-orange-50 transition-all group duration-300">
                         <div className="flex items-center gap-4 overflow-hidden">
                            <div className="w-12 h-12 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl shrink-0">
                               📊
                            </div>
                            <div className="min-w-0">
-                              <h4 className="font-bold text-gray-800 text-sm truncate pr-2 group-hover:text-orange-700 transition-colors">{f.description || f.name}</h4>
+                              <h4 className="font-bold text-gray-800 text-sm truncate pr-2 group-hover:text-orange-700 transition-colors">
+                                {plan.driveName || `Rancangan Tahunan ${year}`}
+                                {plan.id && plan.id.startsWith('-') && <span className="ml-2 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🔒 Firebase</span>}
+                              </h4>
                               <p className="text-[10px] text-gray-400 font-medium">
-                                 {new Date(f.date).toLocaleDateString()} • PDF
+                                 {plan.driveDate ? new Date(plan.driveDate).toLocaleDateString() : 'N/A'} • PDF
                               </p>
                            </div>
                         </div>
                         <div className="flex gap-2">
-                            <button 
+                            <button
                                 onClick={() => {
-                                    setSelectedPdfUrl(f.url);
-                                    setSelectedPdfTitle(f.description || f.name);
+                                    setSelectedPdfUrl(plan.driveUrl || plan.pdfUrl || '');
+                                    setSelectedPdfTitle(plan.driveName || `Rancangan Tahunan ${year}`);
                                 }}
                                 className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-orange-500 hover:bg-orange-600 hover:text-white hover:border-orange-600 transition-all shadow-sm"
+                                disabled={!plan.driveUrl && !plan.pdfUrl}
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                             </button>
-                            <button 
-                                onClick={() => setFileToDelete(f.id)}
+                            <button
+                                onClick={() => setPlanToDelete(plan)}
                                 className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm"
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -281,17 +404,17 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
 
       {/* PDF MODAL */}
       {selectedPdfUrl && (
-         <PDFViewerModal 
-            url={selectedPdfUrl} 
-            title={selectedPdfTitle} 
-            onClose={() => setSelectedPdfUrl(null)} 
+         <PDFViewerModal
+            url={selectedPdfUrl}
+            title={selectedPdfTitle}
+            onClose={() => setSelectedPdfUrl(null)}
          />
       )}
 
       {/* DELETE MODAL */}
-      <DeleteConfirmationModal 
-         isOpen={!!fileToDelete}
-         onClose={() => setFileToDelete(null)}
+      <DeleteConfirmationModal
+         isOpen={!!planToDelete}
+         onClose={() => setPlanToDelete(null)}
          onConfirm={handleDeleteConfirm}
          unitPassword={unit.password}
       />
@@ -299,20 +422,23 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
       {/* FORM MODAL */}
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4">
-           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => !isSubmitting && setShowModal(false)}></div>
+           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={handleCloseModal}></div>
            <div className="bg-white rounded-2xl w-full max-w-4xl relative animate-scaleUp max-h-[95vh] overflow-hidden flex flex-col shadow-2xl">
-              
+
               <div className="bg-orange-600 p-5 text-white shrink-0 flex justify-between items-center">
-                 <div>
-                    <h3 className="text-lg font-bold">Rancangan Tahunan {year}</h3>
-                    <p className="text-xs opacity-90">{unit.name}</p>
+                 <div className="flex items-center gap-3">
+                    <div>
+                       <h3 className="text-lg font-bold">Rancangan Tahunan {year}</h3>
+                       <p className="text-xs opacity-90">{unit.name}</p>
+                    </div>
+                    <span className="text-[10px] bg-green-600 px-2 py-1 rounded-full font-bold">💾 Draf Auto-Simpan Aktif</span>
                  </div>
-                 <button onClick={() => setShowModal(false)} className="text-white/70 hover:text-white">✕</button>
+                 <button onClick={handleCloseModal} className="text-white/70 hover:text-white">✕</button>
               </div>
 
               <div className="p-4 overflow-y-auto custom-scrollbar flex-1 bg-gray-50">
                  <form id="planForm" onSubmit={handleSubmit} className="space-y-4">
-                    
+
                     <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
                         <table className="w-full text-sm">
                             <thead>
@@ -330,7 +456,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                                     <tr key={index} className="group hover:bg-orange-50 transition-colors">
                                         <td className="p-2 text-center text-gray-400 font-bold">{index + 1}</td>
                                         <td className="p-2">
-                                            <select 
+                                            <select
                                                 value={item.month}
                                                 onChange={(e) => handleItemChange(index, 'month', e.target.value)}
                                                 className="w-full p-2 border rounded text-xs focus:border-orange-500 outline-none"
@@ -340,7 +466,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                                             </select>
                                         </td>
                                         <td className="p-2">
-                                            <input 
+                                            <input
                                                 type="text"
                                                 placeholder="Cth: Minggu 1"
                                                 value={item.date}
@@ -349,7 +475,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                                             />
                                         </td>
                                         <td className="p-2">
-                                            <input 
+                                            <input
                                                 type="text"
                                                 placeholder="Nama Aktiviti"
                                                 value={item.activity}
@@ -359,7 +485,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                                             />
                                         </td>
                                         <td className="p-2">
-                                            <input 
+                                            <input
                                                 type="text"
                                                 placeholder="Catatan"
                                                 value={item.remarks}
@@ -368,8 +494,8 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                                             />
                                         </td>
                                         <td className="p-2 text-center">
-                                            <button 
-                                                type="button" 
+                                            <button
+                                                type="button"
                                                 onClick={() => removeItem(index)}
                                                 className="text-gray-300 hover:text-red-500 transition-colors"
                                             >
@@ -380,10 +506,10 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
                                 ))}
                             </tbody>
                         </table>
-                        
+
                         <div className="mt-4 flex justify-center">
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 onClick={addItem}
                                 className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-xs font-bold transition-all active:scale-95"
                             >
@@ -396,7 +522,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
               </div>
 
               <div className="p-5 border-t border-gray-200 bg-white flex justify-end gap-3 shrink-0">
-                 <Button variant="ghost" type="button" onClick={() => setShowModal(false)} disabled={isSubmitting}>Batal</Button>
+                 <Button variant="ghost" type="button" onClick={handleCloseModal} disabled={isSubmitting}>Batal</Button>
                  <Button variant="primary" form="planForm" type="submit" isLoading={isSubmitting} className="bg-orange-600 hover:bg-orange-700 text-white shadow-orange-200">
                     {isSubmitting ? (loadingText || 'Menjana PDF...') : 'Simpan & Jana PDF'}
                  </Button>

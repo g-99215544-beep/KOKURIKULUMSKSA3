@@ -1,7 +1,7 @@
 
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, push, set, serverTimestamp, query, orderByChild, equalTo, get, remove, update } from "firebase/database";
-import { MeetingSchedule, WeeklyReportData } from '../types';
+import { MeetingSchedule, WeeklyReportData, OrgChartData, AnnualPlanData } from '../types';
 import type { Achievement } from '../types';
 
 // Konfigurasi ini BETUL untuk projek anda
@@ -266,6 +266,158 @@ export const firebaseService = {
       return { success: true };
     } catch (e) {
       console.error("Failed to delete achievement:", e);
+      throw e;
+    }
+  },
+
+  // Organizational Chart Functions
+  submitOrgChart: async (orgChart: OrgChartData) => {
+    try {
+      // Simpan ke node 'carta_organisasi'
+      const orgChartRef = ref(db, 'carta_organisasi');
+      const newOrgChartRef = push(orgChartRef);
+      await set(newOrgChartRef, {
+        ...orgChart,
+        timestamp: serverTimestamp()
+      });
+      console.log("Carta Organisasi berjaya disimpan ke Firebase:", newOrgChartRef.key);
+      return { success: true, id: newOrgChartRef.key };
+    } catch (e) {
+      console.error("Ralat Firebase simpan carta organisasi:", e);
+      throw e;
+    }
+  },
+
+  getOrgChartsByUnit: async (unitName: string, year?: number): Promise<OrgChartData[]> => {
+    try {
+      const dbRef = ref(db, 'carta_organisasi');
+      const snapshot = await get(dbRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const orgCharts: OrgChartData[] = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+
+        // Tapis ikut nama unit dan tahun (jika diberi)
+        let filtered = orgCharts.filter(r =>
+          r.unitName && r.unitName.toLowerCase().trim() === unitName.toLowerCase().trim()
+        );
+
+        if (year) {
+          filtered = filtered.filter(r => r.year === year);
+        }
+
+        return filtered.sort((a, b) => {
+          const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return timeB - timeA;
+        });
+      }
+      return [];
+    } catch (e) {
+      console.error("Gagal mengambil carta organisasi:", e);
+      return [];
+    }
+  },
+
+  updateOrgChartPdfUrl: async (orgChartId: string, pdfUrl: string) => {
+    try {
+      const orgChartRef = ref(db, `carta_organisasi/${orgChartId}`);
+      await update(orgChartRef, { pdfUrl });
+      console.log("PDF URL dikemaskini untuk carta organisasi:", orgChartId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal kemaskini PDF URL:", e);
+      throw e;
+    }
+  },
+
+  deleteOrgChart: async (orgChartId: string) => {
+    try {
+      const orgChartRef = ref(db, `carta_organisasi/${orgChartId}`);
+      await remove(orgChartRef);
+      console.log("Carta Organisasi dipadam dari Firebase:", orgChartId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal padam carta organisasi:", e);
+      throw e;
+    }
+  },
+
+  // Annual Plan Functions
+  submitAnnualPlan: async (annualPlan: AnnualPlanData) => {
+    try {
+      // Simpan ke node 'rancangan_tahunan'
+      const annualPlanRef = ref(db, 'rancangan_tahunan');
+      const newAnnualPlanRef = push(annualPlanRef);
+      await set(newAnnualPlanRef, {
+        ...annualPlan,
+        timestamp: serverTimestamp()
+      });
+      console.log("Rancangan Tahunan berjaya disimpan ke Firebase:", newAnnualPlanRef.key);
+      return { success: true, id: newAnnualPlanRef.key };
+    } catch (e) {
+      console.error("Ralat Firebase simpan rancangan tahunan:", e);
+      throw e;
+    }
+  },
+
+  getAnnualPlansByUnit: async (unitName: string, year?: number): Promise<AnnualPlanData[]> => {
+    try {
+      const dbRef = ref(db, 'rancangan_tahunan');
+      const snapshot = await get(dbRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const annualPlans: AnnualPlanData[] = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+
+        // Tapis ikut nama unit dan tahun (jika diberi)
+        let filtered = annualPlans.filter(r =>
+          r.unitName && r.unitName.toLowerCase().trim() === unitName.toLowerCase().trim()
+        );
+
+        if (year) {
+          filtered = filtered.filter(r => r.year === year);
+        }
+
+        return filtered.sort((a, b) => {
+          const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return timeB - timeA;
+        });
+      }
+      return [];
+    } catch (e) {
+      console.error("Gagal mengambil rancangan tahunan:", e);
+      return [];
+    }
+  },
+
+  updateAnnualPlanPdfUrl: async (annualPlanId: string, pdfUrl: string) => {
+    try {
+      const annualPlanRef = ref(db, `rancangan_tahunan/${annualPlanId}`);
+      await update(annualPlanRef, { pdfUrl });
+      console.log("PDF URL dikemaskini untuk rancangan tahunan:", annualPlanId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal kemaskini PDF URL:", e);
+      throw e;
+    }
+  },
+
+  deleteAnnualPlan: async (annualPlanId: string) => {
+    try {
+      const annualPlanRef = ref(db, `rancangan_tahunan/${annualPlanId}`);
+      await remove(annualPlanRef);
+      console.log("Rancangan Tahunan dipadam dari Firebase:", annualPlanId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal padam rancangan tahunan:", e);
       throw e;
     }
   }
