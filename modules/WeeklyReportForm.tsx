@@ -1,14 +1,18 @@
 
 import React, { useState, useEffect } from 'react';
-import { Unit, WeeklyReportItem, UnitCategory } from '../types';
+import { Unit, WeeklyReportItem, UnitCategory, WeeklyReportData } from '../types';
 import { Button } from '../components/ui/Button';
 import { Input, Textarea } from '../components/ui/Input';
 import { gasService } from '../services/gasService';
+import { firebaseService } from '../services/firebaseService';
 import { PDFViewerModal } from '../components/PDFViewerModal';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 
 // Declare external library type
 declare var html2pdf: any;
+
+// LocalStorage key for draft
+const DRAFT_KEY_PREFIX = 'weekly_report_draft_';
 
 interface WeeklyReportFormProps {
   unit: Unit;
@@ -69,12 +73,54 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
   };
 
   useEffect(() => {
-    setReports([]); 
+    setReports([]);
     setIsLoading(true);
     fetchReports();
     // Auto-select all teachers initially
     setSelectedTeachers(unit.teachers || []);
   }, [unit.name, year]);
+
+  // Helper function to get localStorage key for this unit
+  const getDraftKey = () => `${DRAFT_KEY_PREFIX}${unit.id}_${year}`;
+
+  // Load draft from localStorage when form opens
+  useEffect(() => {
+    if (showFormModal) {
+      const draftKey = getDraftKey();
+      const savedDraft = localStorage.getItem(draftKey);
+      if (savedDraft) {
+        try {
+          const draft = JSON.parse(savedDraft);
+          setFormData(draft.formData || formData);
+          setSelectedTeachers(draft.selectedTeachers || unit.teachers || []);
+          // Note: Images cannot be restored from localStorage due to file object limitations
+          console.log("✅ Draf dimuat semula dari cache");
+        } catch (e) {
+          console.error("Gagal muat draf:", e);
+        }
+      }
+    }
+  }, [showFormModal]);
+
+  // Auto-save draft to localStorage when user types
+  useEffect(() => {
+    if (showFormModal) {
+      const draftKey = getDraftKey();
+      const draftData = {
+        formData,
+        selectedTeachers,
+        savedAt: new Date().toISOString()
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draftData));
+    }
+  }, [formData, selectedTeachers, showFormModal]);
+
+  // Function to clear draft
+  const clearDraft = () => {
+    const draftKey = getDraftKey();
+    localStorage.removeItem(draftKey);
+    console.log("🗑️ Draf dipadam dari cache");
+  };
 
   // Handle Deletion
   const handleDeleteConfirm = async () => {
@@ -259,18 +305,64 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
+    let firebaseReportId: string | undefined;
+
     try {
+      // STEP 1: Save to Firebase FIRST (data protection)
+      setLoadingText('Menyimpan ke pangkalan data...');
+      const reportData: WeeklyReportData = {
+        unitId: unit.id,
+        unitName: unit.name,
+        unitCategory: unit.category,
+        year: year,
+        perjumpaanKali: formData.perjumpaanKali,
+        tarikh: formData.tarikh,
+        hari: formData.hari,
+        masa: formData.masa,
+        tempat: formData.tempat,
+        muridHadir: formData.muridHadir,
+        jumlahMurid: formData.jumlahMurid,
+        selectedTeachers: selectedTeachers,
+        aktiviti1: formData.aktiviti1,
+        aktiviti2: formData.aktiviti2,
+        aktiviti3: formData.aktiviti3,
+        pikebm: formData.pikebm,
+        refleksi: formData.refleksi
+      };
+
+      const firebaseResult = await firebaseService.submitWeeklyReport(reportData);
+      firebaseReportId = firebaseResult.id;
+      console.log("✅ Data selamat disimpan ke Firebase:", firebaseReportId);
+
+      // STEP 2: Generate PDF
       setLoadingText('Menjana PDF...');
       const pdfBlob = await createPDFBlob();
-      const fileName = `Laporan_${formData.perjumpaanKali.replace(/\s/g, '')}_${unit.name}.pdf`; // Note .pdf extension
+      const fileName = `Laporan_${formData.perjumpaanKali.replace(/\s/g, '')}_${unit.name}.pdf`;
       const file = new File([pdfBlob], fileName, { type: "application/pdf" });
-      
-      setLoadingText('Memuat naik ke Drive...');
-      await gasService.uploadFile(file, `Laporan ${formData.perjumpaanKali} - ${formData.tarikh}`, unit.name, year, 'LAPORAN MINGGUAN');
-      
-      alert("✅ Laporan PDF Berjaya Dihantar!");
+
+      // STEP 3: Upload PDF to Google Drive
+      setLoadingText('Memuat naik PDF ke Drive...');
+      const uploadResult = await gasService.uploadFile(
+        file,
+        `Laporan ${formData.perjumpaanKali} - ${formData.tarikh}`,
+        unit.name,
+        year,
+        'LAPORAN MINGGUAN'
+      );
+
+      // STEP 4: Update Firebase with PDF URL (if available)
+      if (firebaseReportId && uploadResult?.fileUrl) {
+        setLoadingText('Mengemaskini pautan PDF...');
+        await firebaseService.updateWeeklyReportPdfUrl(firebaseReportId, uploadResult.fileUrl);
+        console.log("✅ PDF URL dikemaskini di Firebase");
+      }
+
+      // SUCCESS: Clear draft and reset form
+      clearDraft();
+      alert("✅ Laporan Berjaya Dihantar & Disimpan!");
       setShowFormModal(false);
+
       // Reset Form
       setFormData({
         perjumpaanKali: '', tarikh: '', hari: '', masa: '1.10 - 2.10 petang', tempat: '',
@@ -278,10 +370,24 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
       });
       setImagePreviews(['', '', '', '']);
       setReportImages([null, null, null, null]);
+      setSelectedTeachers(unit.teachers || []);
       fetchReports(true); // Refresh List
 
     } catch (err: any) {
-      alert("❌ Ralat: " + err.message);
+      console.error("❌ Ralat semasa penghantaran:", err);
+
+      // Enhanced error message
+      let errorMessage = "Ralat: " + err.message;
+      if (firebaseReportId) {
+        errorMessage += "\n\n⚠️ Data anda SELAMAT di Firebase (ID: " + firebaseReportId + ")";
+        errorMessage += "\nAnda boleh cuba upload PDF semula.";
+      } else {
+        errorMessage += "\n\n💡 Data anda masih ada dalam borang. Jangan tutup modal ini.";
+      }
+
+      alert("❌ " + errorMessage);
+
+      // Don't close modal or reset form - keep data for retry
     } finally {
       setIsSubmitting(false);
       setLoadingText('');
@@ -428,8 +534,28 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
                     <div>
                         <h3 className="text-lg font-bold">Laporan Mingguan Baru</h3>
                         <p className="text-xs opacity-90">{unit.name} • {unit.category.replace('_', ' ')}</p>
+                        {(formData.perjumpaanKali || formData.tarikh || formData.aktiviti1) && (
+                          <p className="text-[10px] mt-1 bg-white/20 px-2 py-0.5 rounded inline-block">
+                            💾 Draf Auto-Simpan Aktif
+                          </p>
+                        )}
                     </div>
-                    <button onClick={() => setShowFormModal(false)} className="text-white/80 hover:text-white">✕</button>
+                    <button
+                      onClick={() => {
+                        const hasData = formData.perjumpaanKali || formData.tarikh || formData.aktiviti1;
+                        if (hasData && !isSubmitting) {
+                          if (confirm("⚠️ Anda mempunyai data yang belum dihantar.\n\nDraf akan disimpan automatik.\nTutup borang?")) {
+                            setShowFormModal(false);
+                          }
+                        } else {
+                          setShowFormModal(false);
+                        }
+                      }}
+                      className="text-white/80 hover:text-white"
+                      disabled={isSubmitting}
+                    >
+                      ✕
+                    </button>
                  </div>
               </div>
 
