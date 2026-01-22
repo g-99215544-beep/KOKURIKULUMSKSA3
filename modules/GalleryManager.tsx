@@ -11,9 +11,10 @@ interface GalleryManagerProps {
   userRole: UserRole;
   onBack: () => void;
   isAuthenticated: boolean;
+  onAuthenticate: () => void;
 }
 
-export const GalleryManager: React.FC<GalleryManagerProps> = ({ unit, year, userRole, onBack, isAuthenticated }) => {
+export const GalleryManager: React.FC<GalleryManagerProps> = ({ unit, year, userRole, onBack, isAuthenticated, onAuthenticate }) => {
   const [images, setImages] = useState<GalleryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -295,6 +296,7 @@ export const GalleryManager: React.FC<GalleryManagerProps> = ({ unit, year, user
          onConfirm={handleDeleteConfirm}
          unitPassword={unit.password}
          isAuthenticated={isAuthenticated}
+         onAuthenticate={onAuthenticate}
       />
 
       {/* MODAL MUAT NAIK */}

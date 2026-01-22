@@ -309,6 +309,7 @@ const App: React.FC = () => {
               userRole={state.user.role}
               onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))}
               isAuthenticated={isAuthenticated(state.selectedUnit.id)}
+              onAuthenticate={() => authenticateUnit(state.selectedUnit!.id)}
             />
           )}
           {state.view === 'FORM_REPORT' && state.selectedUnit && (
@@ -343,6 +344,7 @@ const App: React.FC = () => {
                   setState(prev => ({ ...prev, view: 'FORM_ATTENDANCE' }));
                 }}
                 isAuthenticated={isAuthenticated(state.selectedUnit.id)}
+                onAuthenticate={() => authenticateUnit(state.selectedUnit!.id)}
              />
           )}
 
@@ -365,6 +367,7 @@ const App: React.FC = () => {
                 year={state.selectedYear}
                 onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))}
                 isAuthenticated={isAuthenticated(state.selectedUnit.id)}
+                onAuthenticate={() => authenticateUnit(state.selectedUnit!.id)}
              />
           )}
           {state.view === 'VIEW_PLAN' && state.selectedUnit && (
@@ -373,6 +376,7 @@ const App: React.FC = () => {
                 year={state.selectedYear}
                 onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))}
                 isAuthenticated={isAuthenticated(state.selectedUnit.id)}
+                onAuthenticate={() => authenticateUnit(state.selectedUnit!.id)}
              />
           )}
         </motion.div>

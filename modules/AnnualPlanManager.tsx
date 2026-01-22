@@ -16,6 +16,7 @@ interface AnnualPlanManagerProps {
   year: number;
   onBack: () => void;
   isAuthenticated: boolean;
+  onAuthenticate: () => void;
 }
 
 interface PlanItem {
@@ -30,7 +31,7 @@ const MONTHS = [
   "Julai", "Ogos", "September", "Oktober", "November", "Disember"
 ];
 
-export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year, onBack, isAuthenticated }) => {
+export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year, onBack, isAuthenticated, onAuthenticate }) => {
   const [firebasePlans, setFirebasePlans] = useState<AnnualPlanData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -103,6 +104,11 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
     if (!isValidPassword) {
       setEditPasswordError('Kata laluan salah!');
       return;
+    }
+
+    // AUTO LOGIN: Authenticate user after successful password entry
+    if (editPassword !== 'admin') {
+      onAuthenticate();
     }
 
     // Password valid, proceed to edit
@@ -427,6 +433,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
          onConfirm={handleDeleteConfirm}
          unitPassword={unit.password}
          isAuthenticated={isAuthenticated}
+         onAuthenticate={onAuthenticate}
       />
 
       {/* VIEW PLAN DETAIL MODAL */}

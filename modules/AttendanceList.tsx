@@ -12,9 +12,10 @@ interface AttendanceListProps {
   onCreateNew: () => void;
   onEditRecord?: (record: AttendanceRecord) => void;
   isAuthenticated: boolean;
+  onAuthenticate: () => void;
 }
 
-export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBack, onCreateNew, onEditRecord, isAuthenticated }) => {
+export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBack, onCreateNew, onEditRecord, isAuthenticated, onAuthenticate }) => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
@@ -75,6 +76,11 @@ export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBa
         setDeleteError('Kata laluan salah!');
         return;
       }
+
+      // AUTO LOGIN: Authenticate user after successful password entry
+      if (deletePassword !== 'admin') {
+        onAuthenticate();
+      }
     }
 
     setIsDeleting(true);
@@ -106,6 +112,11 @@ export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBa
       if (!isValidPassword) {
         setEditError('Kata laluan salah!');
         return;
+      }
+
+      // AUTO LOGIN: Authenticate user after successful password entry
+      if (editPassword !== 'admin') {
+        onAuthenticate();
       }
     }
 
