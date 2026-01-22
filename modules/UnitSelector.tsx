@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Unit, UnitCategory, CATEGORY_LABELS, MeetingSchedule, ComplianceStatus } from '../types';
+import { Unit, UnitCategory, CATEGORY_LABELS, MeetingSchedule, ComplianceStatus, UnitFlare } from '../types';
 import { gasService } from '../services/gasService';
 import { firebaseService } from '../services/firebaseService';
 import { complianceService } from '../services/complianceService';
@@ -17,6 +17,34 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
   const [isLoading, setIsLoading] = useState(false);
   const [nonCompliantMap, setNonCompliantMap] = useState<Map<string, ComplianceStatus[]>>(new Map());
   const [schedules, setSchedules] = useState<MeetingSchedule[]>([]);
+  const [allFlares, setAllFlares] = useState<UnitFlare[]>([]);
+
+  // Load all flares for all categories
+  useEffect(() => {
+    const loadAllFlares = async () => {
+      try {
+        const [ubFlares, kpFlares, m1sFlares] = await Promise.all([
+          firebaseService.getFlaresByCategory(UnitCategory.UNIT_BERUNIFORM, selectedYear),
+          firebaseService.getFlaresByCategory(UnitCategory.KELAB_PERSATUAN, selectedYear),
+          firebaseService.getFlaresByCategory(UnitCategory.SATU_M_SATU_S, selectedYear)
+        ]);
+        setAllFlares([...ubFlares, ...kpFlares, ...m1sFlares]);
+      } catch (e) {
+        console.error("Failed to load flares:", e);
+      }
+    };
+    loadAllFlares();
+  }, [selectedYear]);
+
+  // Get flare count for a category
+  const getCategoryFlareCount = (cat: UnitCategory) => {
+    return allFlares.filter(f => f.category === cat).length;
+  };
+
+  // Get flare count for a unit
+  const getUnitFlareCount = (unitName: string) => {
+    return allFlares.filter(f => f.unitName.toLowerCase().trim() === unitName.toLowerCase().trim()).length;
+  };
 
   // Load meeting schedules
   useEffect(() => {
@@ -122,19 +150,32 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
         <div className="grid grid-cols-1 gap-4">
           {Object.values(UnitCategory).map((cat) => {
             const style = getCategoryStyle(cat);
+            const flareCount = getCategoryFlareCount(cat);
             return (
-              <div 
+              <div
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
                 className={`
-                   bg-white rounded-2xl p-5 cursor-pointer
+                   bg-white rounded-2xl p-5 cursor-pointer relative
                    border-l-[6px] ${style.border}
                    shadow-sm hover:shadow-lg hover:-translate-y-1 hover:shadow-red-100
                    transition-all duration-300 flex items-center justify-between group
                 `}
               >
+                {/* Flare Badge on Category */}
+                {flareCount > 0 && (
+                  <div className="absolute -top-2 -right-2 z-10">
+                    <span className="flex h-7 w-7">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-7 w-7 bg-red-500 items-center justify-center text-white text-xs font-bold border-2 border-white shadow-lg">
+                        {flareCount}
+                      </span>
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-5">
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${style.bg} ${style.text}`}>
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${style.bg} ${style.text} relative`}>
                     {getCategoryIconSvg(cat)}
                   </div>
                   <div>
@@ -142,11 +183,15 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
                       {CATEGORY_LABELS[cat]}
                     </h4>
                     <p className="text-xs text-gray-400 mt-1 font-medium">
-                      Klik untuk lihat senarai unit
+                      {flareCount > 0 ? (
+                        <span className="text-red-500 font-bold">{flareCount} peringatan aktif</span>
+                      ) : (
+                        'Klik untuk lihat senarai unit'
+                      )}
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-300 group-hover:bg-red-600 group-hover:text-white transition-all">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -193,14 +238,27 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
           {units.map((unit) => {
             const nonCompliantWeeks = nonCompliantMap.get(unit.id);
             const badgeCount = nonCompliantWeeks ? complianceService.countNonCompliantWeeks(nonCompliantWeeks) : 0;
+            const unitFlareCount = getUnitFlareCount(unit.name);
 
             return (
               <Card
                 key={unit.id}
                 hoverable
                 onClick={() => onSelectUnit(unit)}
-                className="group !p-5 border-l-4 !border-l-transparent hover:!border-l-red-600"
+                className="group !p-5 border-l-4 !border-l-transparent hover:!border-l-red-600 relative"
               >
+                {/* Flare Badge on Unit Card */}
+                {unitFlareCount > 0 && (
+                  <div className="absolute -top-2 -right-2 z-10">
+                    <span className="flex h-6 w-6">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-6 w-6 bg-red-500 items-center justify-center text-white text-[10px] font-bold border-2 border-white shadow-lg">
+                        {unitFlareCount}
+                      </span>
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div className="relative">
@@ -211,9 +269,9 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
                           <span className="font-extrabold text-xl text-gray-600">{unit.name.charAt(0)}</span>
                         )}
                       </div>
-                      {/* Notification Badge */}
-                      {badgeCount > 0 && (
-                        <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg border-2 border-white animate-pulse">
+                      {/* Compliance Badge */}
+                      {badgeCount > 0 && unitFlareCount === 0 && (
+                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-lg border-2 border-white">
                           {badgeCount}
                         </div>
                       )}
@@ -223,10 +281,17 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
                         {unit.name}
                       </h4>
                       <div className="flex items-center mt-1">
-                        {badgeCount > 0 ? (
+                        {unitFlareCount > 0 ? (
                           <>
                             <span className="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span>
                             <p className="text-xs text-red-600 font-bold">
+                              {unitFlareCount} peringatan dari penyelaras
+                            </p>
+                          </>
+                        ) : badgeCount > 0 ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-orange-500 mr-2 animate-pulse"></span>
+                            <p className="text-xs text-orange-600 font-bold">
                               {badgeCount} rekod belum lengkap
                             </p>
                           </>

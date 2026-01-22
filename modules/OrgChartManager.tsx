@@ -306,6 +306,14 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
         console.log("✅ PDF URL dikemaskini di Firebase");
       }
 
+      // Auto-remove flare for carta organisasi
+      try {
+        await firebaseService.deleteFlareByTypeAndUnit(unit.name, 'CARTA_ORGANISASI', year);
+        console.log("Flare carta organisasi auto-removed for", unit.name);
+      } catch (flareError) {
+        console.log("No flare to remove or error:", flareError);
+      }
+
       const successMsg = isEditMode ? "✅ Carta Organisasi Berjaya Dikemaskini!" : "✅ Carta Organisasi Berjaya Disimpan!";
       alert(successMsg);
       setShowModal(false);
