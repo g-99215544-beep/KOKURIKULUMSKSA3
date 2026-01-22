@@ -10,15 +10,16 @@ interface TeacherManagerProps {
   unit: Unit;
   userRole: UserRole;
   onBack: () => void;
+  isAuthenticated: boolean;
 }
 
-export const TeacherManager: React.FC<TeacherManagerProps> = ({ unit, userRole, onBack }) => {
+export const TeacherManager: React.FC<TeacherManagerProps> = ({ unit, userRole, onBack, isAuthenticated }) => {
   const [teachers, setTeachers] = useState<string[]>(unit.teachers || []);
   const [newTeacherName, setNewTeacherName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  const canEdit = userRole === UserRole.UNIT_ADMIN || userRole === UserRole.SUPER_ADMIN;
+  const canEdit = userRole === UserRole.UNIT_ADMIN || userRole === UserRole.SUPER_ADMIN || isAuthenticated;
 
   const handleAddTeacher = (e: React.FormEvent) => {
     e.preventDefault();

@@ -15,6 +15,7 @@ interface AnnualPlanManagerProps {
   unit: Unit;
   year: number;
   onBack: () => void;
+  isAuthenticated: boolean;
 }
 
 interface PlanItem {
@@ -29,7 +30,7 @@ const MONTHS = [
   "Julai", "Ogos", "September", "Oktober", "November", "Disember"
 ];
 
-export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year, onBack }) => {
+export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year, onBack, isAuthenticated }) => {
   const [firebasePlans, setFirebasePlans] = useState<AnnualPlanData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -120,10 +121,17 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
     setPendingEditPlan(null);
   };
 
-  // Handle requesting edit (show password modal first)
+  // Handle requesting edit (show password modal first, or skip if authenticated)
   const handleRequestEdit = (plan: AnnualPlanData) => {
-    setPendingEditPlan(plan);
-    setShowEditPasswordModal(true);
+    if (isAuthenticated) {
+      // If authenticated, skip password modal and directly open edit
+      setEditingPlan(plan);
+      setPlanItems(plan.planItems);
+      setShowModal(true);
+    } else {
+      setPendingEditPlan(plan);
+      setShowEditPasswordModal(true);
+    }
   };
 
   // Handle Deletion
@@ -418,6 +426,7 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
          onClose={() => setPlanToDelete(null)}
          onConfirm={handleDeleteConfirm}
          unitPassword={unit.password}
+         isAuthenticated={isAuthenticated}
       />
 
       {/* VIEW PLAN DETAIL MODAL */}
