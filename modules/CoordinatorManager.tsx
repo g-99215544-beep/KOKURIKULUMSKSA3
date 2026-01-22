@@ -81,16 +81,24 @@ export const CoordinatorManager: React.FC<CoordinatorManagerProps> = ({ category
     setIsSubmitting(true);
     try {
       for (const flareType of selectedFlareTypes) {
-        const flare: UnitFlare = {
+        const flare: any = {
           unitId: selectedUnit.id,
           unitName: selectedUnit.name,
           category: category,
           flareType: flareType,
-          weekNumber: (flareType === 'KEHADIRAN' || flareType === 'LAPORAN_MINGGUAN') ? weekNumber : undefined,
-          message: customMessage || undefined,
           assignedBy: category,
           year: year
         };
+
+        // Only add weekNumber if it's needed (for KEHADIRAN or LAPORAN_MINGGUAN)
+        if (flareType === 'KEHADIRAN' || flareType === 'LAPORAN_MINGGUAN') {
+          flare.weekNumber = weekNumber;
+        }
+
+        // Only add message if it exists
+        if (customMessage) {
+          flare.message = customMessage;
+        }
 
         await firebaseService.saveFlare(flare);
       }
@@ -120,16 +128,24 @@ export const CoordinatorManager: React.FC<CoordinatorManagerProps> = ({ category
       let successCount = 0;
       for (const unit of categoryUnits) {
         for (const flareType of selectedFlareTypes) {
-          const flare: UnitFlare = {
+          const flare: any = {
             unitId: unit.id,
             unitName: unit.name,
             category: category,
             flareType: flareType,
-            weekNumber: (flareType === 'KEHADIRAN' || flareType === 'LAPORAN_MINGGUAN') ? weekNumber : undefined,
-            message: customMessage || undefined,
             assignedBy: category,
             year: year
           };
+
+          // Only add weekNumber if it's needed (for KEHADIRAN or LAPORAN_MINGGUAN)
+          if (flareType === 'KEHADIRAN' || flareType === 'LAPORAN_MINGGUAN') {
+            flare.weekNumber = weekNumber;
+          }
+
+          // Only add message if it exists
+          if (customMessage) {
+            flare.message = customMessage;
+          }
 
           await firebaseService.saveFlare(flare);
           successCount++;
