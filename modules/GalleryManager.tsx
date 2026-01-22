@@ -174,15 +174,6 @@ export const GalleryManager: React.FC<GalleryManagerProps> = ({ unit, year, user
             <Button variant="ghost" onClick={onBack} className="hover:text-red-600 font-bold transition-colors !text-gray-700">
                <span className="text-xl mr-2">←</span> Kembali
             </Button>
-            {isCurrentYear && (
-                <button 
-                   onClick={() => setShowModal(true)} 
-                   className="w-10 h-10 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-red-200 active:scale-95 transition-all group"
-                   title="Muat Naik Gambar"
-                >
-                   <svg className="w-5 h-5 group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                </button>
-            )}
         </div>
         <div className="text-right hidden sm:block">
           <h2 className="text-2xl font-black text-gray-900 tracking-tight">Galeri {year}</h2>
@@ -263,20 +254,16 @@ export const GalleryManager: React.FC<GalleryManagerProps> = ({ unit, year, user
         </div>
       )}
 
-      {/* BUTANG TAMBAH (Mobile) */}
+      {/* FLOATING ADD BUTTON (Bottom Right) */}
       {isCurrentYear && (
         <button
           onClick={() => setShowModal(true)}
-          className="fixed bottom-10 right-10 z-[40] bg-red-600 hover:bg-red-700 text-white rounded-full p-6 shadow-[0_25px_50px_rgba(220,38,38,0.5)] hover:scale-110 active:scale-90 transition-all duration-300 border-4 border-white flex items-center justify-center group sm:hidden"
+          className="fixed bottom-10 right-10 z-[40] bg-red-600 hover:bg-red-700 text-white rounded-full p-6 shadow-[0_25px_50px_rgba(220,38,38,0.5)] hover:scale-110 active:scale-90 transition-all duration-300 border-4 border-white flex items-center justify-center group"
+          title="Muat Naik Gambar"
         >
-          <div className="flex items-center gap-3">
-             <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 font-black whitespace-nowrap text-xs uppercase tracking-widest pl-1">
-                Muat Naik
-             </span>
-             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
-             </svg>
-          </div>
+          <svg className="w-8 h-8 group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+          </svg>
         </button>
       )}
 
