@@ -7,58 +7,23 @@ interface DeleteConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  unitPassword?: string; // The correct password for validation
-  isAuthenticated?: boolean; // Skip password check if authenticated
-  onAuthenticate?: () => void; // Callback to authenticate user after successful password
 }
 
 export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
   isOpen,
   onClose,
-  onConfirm,
-  unitPassword,
-  isAuthenticated = false,
-  onAuthenticate
+  onConfirm
 }) => {
-  const [inputPassword, setInputPassword] = useState('');
-  const [error, setError] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-
-    // If user is authenticated, skip password check
-    if (isAuthenticated) {
-      setIsDeleting(true);
-      await onConfirm();
-      setIsDeleting(false);
-      onClose();
-      return;
-    }
-
-    if (!unitPassword) {
-        setError('Ralat sistem: Kata laluan unit tidak dijumpai.');
-        return;
-    }
-
-    if (inputPassword.trim().toUpperCase() === unitPassword.trim().toUpperCase() || inputPassword === 'admin') {
-       setIsDeleting(true);
-
-       // AUTO LOGIN: Authenticate user after successful password entry
-       if (onAuthenticate && inputPassword !== 'admin') {
-         onAuthenticate();
-       }
-
-       await onConfirm();
-       setIsDeleting(false);
-       setInputPassword('');
-       onClose();
-    } else {
-       setError('Kata laluan salah!');
-    }
+    setIsDeleting(true);
+    await onConfirm();
+    setIsDeleting(false);
+    onClose();
   };
 
   return (
@@ -77,39 +42,11 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
             </div>
             <h3 className="text-xl font-bold text-gray-900">Padam Fail?</h3>
             <p className="text-sm text-gray-500 mt-2">
-                {isAuthenticated
-                  ? 'Tindakan ini tidak boleh dikembalikan.'
-                  : 'Tindakan ini tidak boleh dikembalikan. Sila masukkan kata laluan unit untuk pengesahan.'}
+                Tindakan ini tidak boleh dikembalikan.
             </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-            {!isAuthenticated && (
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wider text-center">Kata Laluan Unit</p>
-                  <Input
-                      type="password"
-                      placeholder="Masukkan Kata Laluan"
-                      value={inputPassword}
-                      onChange={e => {
-                          setInputPassword(e.target.value);
-                          setError('');
-                      }}
-                      className="text-center font-bold tracking-widest text-lg"
-                      autoFocus
-                  />
-                  {error && <p className="text-xs text-red-600 font-bold text-center mt-2 animate-pulse">{error}</p>}
-              </div>
-            )}
-
-            {isAuthenticated && (
-              <div className="bg-green-50 p-4 rounded-xl border border-green-200">
-                <p className="text-sm text-green-700 text-center font-semibold">
-                  ✓ Anda log masuk sebagai Penyelaras. Tekan "Sahkan Padam" untuk meneruskan.
-                </p>
-              </div>
-            )}
-
             <div className="flex gap-3">
                 <Button type="button" variant="ghost" onClick={onClose} className="flex-1 bg-gray-100 hover:bg-gray-200">
                     Batal

@@ -13,9 +13,6 @@ interface UnitDashboardProps {
   year: number;
   onNavigate: (view: any) => void;
   onBack: () => void;
-  isAuthenticated: boolean;
-  onAuthenticate: () => void;
-  onLogout: () => void;
 }
 
 export const UnitDashboard: React.FC<UnitDashboardProps> = ({
@@ -23,18 +20,12 @@ export const UnitDashboard: React.FC<UnitDashboardProps> = ({
   userRole,
   year,
   onNavigate,
-  onBack,
-  isAuthenticated,
-  onAuthenticate,
-  onLogout
+  onBack
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [flares, setFlares] = useState<UnitFlare[]>([]);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [password, setPassword] = useState('');
 
   const isAdmin = userRole === UserRole.SUPER_ADMIN || userRole === UserRole.UNIT_ADMIN;
-  const canEdit = isAdmin || isAuthenticated;
 
   // Fetch flares for this unit
   useEffect(() => {
@@ -60,25 +51,6 @@ export const UnitDashboard: React.FC<UnitDashboardProps> = ({
     const flareType = flareMap[moduleId];
     if (!flareType) return undefined;
     return flares.find(f => f.flareType === flareType);
-  };
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === unit.password) {
-      onAuthenticate();
-      setShowLoginModal(false);
-      setPassword('');
-      alert(`✅ Anda kini log masuk sebagai Penyelaras ${unit.name}`);
-    } else {
-      alert('❌ Kata laluan salah!');
-    }
-  };
-
-  const handleLogout = () => {
-    if (confirm(`Log keluar dari ${unit.name}?`)) {
-      onLogout();
-      alert('✅ Anda telah log keluar');
-    }
   };
 
   const handleGenerateFolders = async () => {
@@ -162,31 +134,6 @@ export const UnitDashboard: React.FC<UnitDashboardProps> = ({
         </button>
 
         <div className="flex gap-2">
-          {/* Login/Logout Button */}
-          {!isAdmin && (
-            isAuthenticated ? (
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 rounded-lg text-xs font-bold bg-green-100 text-green-700 border-2 border-green-300 hover:bg-green-200 transition-all flex items-center gap-2 shadow-sm"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                PENYELARAS
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowLoginModal(true)}
-                className="px-4 py-2 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 border-2 border-blue-300 hover:bg-blue-200 transition-all flex items-center gap-2 shadow-sm"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                LOG MASUK
-              </button>
-            )
-          )}
-
           {isAdmin && (
             <>
               <Button
@@ -262,67 +209,6 @@ export const UnitDashboard: React.FC<UnitDashboardProps> = ({
           );
         })}
       </div>
-
-      {/* Login Modal */}
-      {showLoginModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowLoginModal(false)}></div>
-          <div className="bg-white rounded-3xl w-full max-w-md relative animate-scaleUp overflow-hidden shadow-2xl">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
-              <div className="w-16 h-16 bg-white/20 rounded-full mx-auto mb-4 flex items-center justify-center">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-center">Log Masuk Sebagai Penyelaras</h3>
-              <p className="text-sm opacity-90 text-center mt-2">Masukkan kata laluan unit untuk log masuk. Penyelaras boleh edit/padam semua rekod.</p>
-            </div>
-
-            {/* Modal Body */}
-            <form onSubmit={handleLogin} className="p-6">
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-2 uppercase">
-                  Kata Laluan Unit
-                </label>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Masukkan kata laluan"
-                  className="w-full"
-                  required
-                />
-              </div>
-
-              <p className="text-xs text-gray-500 mt-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
-                <strong>💡 Tip:</strong> Selepas log masuk, anda boleh edit/padam semua fail tanpa perlu masukkan kata laluan lagi sehingga anda log keluar.
-              </p>
-
-              {/* Modal Footer */}
-              <div className="flex gap-3 mt-6">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setShowLoginModal(false);
-                    setPassword('');
-                  }}
-                  className="flex-1"
-                >
-                  Batal
-                </Button>
-                <Button
-                  type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700"
-                >
-                  Log Masuk
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -15,11 +15,9 @@ interface OrgChartManagerProps {
   unit: Unit;
   year: number;
   onBack: () => void;
-  isAuthenticated: boolean;
-  onAuthenticate: () => void;
 }
 
-export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, onBack, isAuthenticated, onAuthenticate }) => {
+export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, onBack }) => {
   const [firebaseCharts, setFirebaseCharts] = useState<OrgChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -41,10 +39,6 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
 
   // Edit Mode State
   const [editingChart, setEditingChart] = useState<OrgChartData | null>(null);
-  const [showEditPasswordModal, setShowEditPasswordModal] = useState(false);
-  const [editPassword, setEditPassword] = useState('');
-  const [editPasswordError, setEditPasswordError] = useState('');
-  const [pendingEditChart, setPendingEditChart] = useState<OrgChartData | null>(null);
 
   const [formData, setFormData] = useState({
     pengerusi: '',
@@ -92,63 +86,19 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
     setEditingChart(null);
   };
 
-  // Handle Edit Password Confirmation
-  const handleEditPasswordConfirm = () => {
-    const isValidPassword =
-      editPassword.trim().toUpperCase() === (unit.password || '').toUpperCase() ||
-      editPassword === 'admin';
-
-    if (!isValidPassword) {
-      setEditPasswordError('Kata laluan salah!');
-      return;
-    }
-
-    // AUTO LOGIN: Authenticate user after successful password entry
-    if (editPassword !== 'admin') {
-      onAuthenticate();
-    }
-
-    // Password valid, proceed to edit
-    if (pendingEditChart) {
-      setEditingChart(pendingEditChart);
-      // Pre-fill form data
-      setFormData({
-        pengerusi: pendingEditChart.pengerusi || '',
-        naibPengerusi: pendingEditChart.naibPengerusi || '',
-        setiausaha: pendingEditChart.setiausaha || '',
-        penSetiausaha: pendingEditChart.penSetiausaha || '',
-        bendahari: pendingEditChart.bendahari || '',
-        penBendahari: pendingEditChart.penBendahari || '',
-        ajk: pendingEditChart.ajk || ''
-      });
-      setShowModal(true);
-    }
-
-    setShowEditPasswordModal(false);
-    setEditPassword('');
-    setEditPasswordError('');
-    setPendingEditChart(null);
-  };
-
-  // Handle requesting edit (show password modal first, or skip if authenticated)
+  // Handle requesting edit
   const handleRequestEdit = (chart: OrgChartData) => {
-    if (isAuthenticated) {
-      // If authenticated, skip password modal and directly open edit
-      setEditingChart(chart);
-      setFormData({
-        pengerusi: chart.pengerusi || '',
-        naibPengerusi: chart.naibPengerusi || '',
-        setiausaha: chart.setiausaha || '',
-        penSetiausaha: chart.penSetiausaha || '',
-        bendahari: chart.bendahari || '',
-        penBendahari: chart.penBendahari || '',
-        ajk: chart.ajk || ''
-      });
-      setShowModal(true);
-    } else {
-      setPendingEditChart(chart);
-      setShowEditPasswordModal(true);
-    }
+    setEditingChart(chart);
+    setFormData({
+      pengerusi: chart.pengerusi || '',
+      naibPengerusi: chart.naibPengerusi || '',
+      setiausaha: chart.setiausaha || '',
+      penSetiausaha: chart.penSetiausaha || '',
+      bendahari: chart.bendahari || '',
+      penBendahari: chart.penBendahari || '',
+      ajk: chart.ajk || ''
+    });
+    setShowModal(true);
   };
 
   // Handle Deletion
@@ -463,9 +413,6 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
          isOpen={!!chartToDelete}
          onClose={() => setChartToDelete(null)}
          onConfirm={handleDeleteConfirm}
-         unitPassword={unit.password}
-         isAuthenticated={isAuthenticated}
-         onAuthenticate={onAuthenticate}
       />
 
       {/* VIEW CHART DETAIL MODAL */}
@@ -562,72 +509,6 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
               )}
               <Button onClick={() => setSelectedChartToView(null)} className="flex-1">Tutup</Button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT PASSWORD CONFIRMATION MODAL */}
-      {showEditPasswordModal && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => {
-            setShowEditPasswordModal(false);
-            setEditPassword('');
-            setEditPasswordError('');
-            setPendingEditChart(null);
-          }}></div>
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative animate-scaleUp shadow-2xl z-10">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-                ✏️
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">Edit Carta Organisasi?</h3>
-              <p className="text-sm text-gray-500 mt-2">
-                <span className="font-bold text-green-600">Carta Organisasi {year}</span>
-              </p>
-              <p className="text-xs text-gray-400 mt-2">
-                Sila masukkan kata laluan unit untuk membolehkan pengeditan.
-              </p>
-            </div>
-
-            <form onSubmit={(e) => { e.preventDefault(); handleEditPasswordConfirm(); }} className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wider text-center">Kata Laluan Unit</p>
-                <Input
-                  type="password"
-                  placeholder="Masukkan Kata Laluan"
-                  value={editPassword}
-                  onChange={e => {
-                    setEditPassword(e.target.value);
-                    setEditPasswordError('');
-                  }}
-                  className="text-center font-bold tracking-widest text-lg"
-                  autoFocus
-                />
-                {editPasswordError && <p className="text-xs text-red-600 font-bold text-center mt-2 animate-pulse">{editPasswordError}</p>}
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setShowEditPasswordModal(false);
-                    setEditPassword('');
-                    setEditPasswordError('');
-                    setPendingEditChart(null);
-                  }}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200"
-                >
-                  Batal
-                </Button>
-                <Button
-                  type="submit"
-                  className="flex-1 bg-green-600 hover:bg-green-700 shadow-green-200"
-                >
-                  Teruskan Edit
-                </Button>
-              </div>
-            </form>
           </div>
         </div>
       )}

@@ -134,7 +134,6 @@ export interface AppState {
   selectedUnit: Unit | null;
   user: User;
   coordinatorCategory?: UnitCategory; // For coordinator view
-  authenticatedUnits: string[]; // List of unit IDs that user has logged in as coordinator
 }
 
 export const CATEGORY_LABELS: Record<UnitCategory, string> = {
