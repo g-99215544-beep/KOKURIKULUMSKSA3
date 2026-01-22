@@ -1,10 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Unit, UserRole } from '../types';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
-import { gasService } from '../services/gasService';
+import { firebaseService } from '../services/firebaseService';
 
 interface TeacherManagerProps {
   unit: Unit;
@@ -14,12 +14,30 @@ interface TeacherManagerProps {
 }
 
 export const TeacherManager: React.FC<TeacherManagerProps> = ({ unit, userRole, onBack, isAuthenticated }) => {
-  const [teachers, setTeachers] = useState<string[]>(unit.teachers || []);
+  const [teachers, setTeachers] = useState<string[]>([]);
   const [newTeacherName, setNewTeacherName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const canEdit = userRole === UserRole.UNIT_ADMIN || userRole === UserRole.SUPER_ADMIN || isAuthenticated;
+
+  // Load teachers from Firebase on mount
+  useEffect(() => {
+    loadTeachers();
+  }, [unit.id]);
+
+  const loadTeachers = async () => {
+    setIsLoading(true);
+    try {
+      const teacherList = await firebaseService.getUnitTeachers(unit.id);
+      setTeachers(teacherList);
+    } catch (e) {
+      console.error('Gagal load senarai guru:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleAddTeacher = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,19 +58,19 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({ unit, userRole, 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await gasService.updateUnitTeachers(unit.id, teachers);
-      unit.teachers = teachers; // Update local reference
+      await firebaseService.saveUnitTeachers(unit.id, teachers);
       setIsEditing(false);
-      alert("Senarai guru berjaya dikemaskini.");
+      alert("✅ Senarai guru berjaya dikemaskini.");
+      loadTeachers(); // Reload to confirm
     } catch (error) {
-      alert("Gagal mengemaskini. Sila cuba lagi.");
+      alert("❌ Gagal mengemaskini. Sila cuba lagi.");
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleCancel = () => {
-    setTeachers(unit.teachers || []);
+    loadTeachers(); // Reload dari Firebase
     setIsEditing(false);
   };
 
@@ -86,9 +104,17 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({ unit, userRole, 
             </span>
         </div>
 
-        {/* Teacher List */}
-        <div className="divide-y divide-gray-100">
-            {teachers.map((teacher, index) => (
+        {/* Loading State */}
+        {isLoading ? (
+          <div className="p-12 flex flex-col items-center justify-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-red-100 border-t-red-600 mb-4"></div>
+            <p className="text-gray-400 text-sm">Memuatkan senarai guru...</p>
+          </div>
+        ) : (
+          <>
+            {/* Teacher List */}
+            <div className="divide-y divide-gray-100">
+              {teachers.map((teacher, index) => (
                 <div key={index} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-xs">
@@ -141,6 +167,8 @@ export const TeacherManager: React.FC<TeacherManagerProps> = ({ unit, userRole, 
                     </Button>
                 </div>
             </div>
+          )}
+          </>
         )}
       </div>
     </div>
