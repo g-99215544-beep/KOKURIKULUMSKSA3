@@ -595,5 +595,38 @@ export const firebaseService = {
       console.error("Gagal auto-remove flare:", e);
       throw e;
     }
+  },
+
+  // ======= TEACHER MANAGEMENT FUNCTIONS =======
+  saveUnitTeachers: async (unitId: string, teachers: string[]) => {
+    try {
+      const teacherRef = ref(db, `unit_teachers/${unitId}`);
+      await set(teacherRef, {
+        unitId,
+        teachers,
+        updatedAt: Date.now()
+      });
+      console.log("Senarai guru disimpan untuk unit:", unitId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal simpan senarai guru:", e);
+      throw e;
+    }
+  },
+
+  getUnitTeachers: async (unitId: string): Promise<string[]> => {
+    try {
+      const teacherRef = ref(db, `unit_teachers/${unitId}`);
+      const snapshot = await get(teacherRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        return data.teachers || [];
+      }
+      return [];
+    } catch (e) {
+      console.error("Gagal ambil senarai guru:", e);
+      return [];
+    }
   }
 };
