@@ -104,12 +104,36 @@ export interface ComplianceStatus {
   deadline: string;
 }
 
+// Flare/Reminder types for coordinator assignments
+export type FlareType = 'KEHADIRAN' | 'LAPORAN_MINGGUAN' | 'CARTA_ORGANISASI' | 'RANCANGAN_TAHUNAN';
+
+export interface UnitFlare {
+  id?: string;
+  unitId: string;
+  unitName: string;
+  category: UnitCategory;
+  flareType: FlareType;
+  weekNumber?: number; // For attendance/weekly report
+  message?: string; // Optional custom message
+  assignedBy: string; // Coordinator category (UB/KP/1M1S)
+  createdAt?: number;
+  year: number;
+}
+
+export const FLARE_LABELS: Record<FlareType, string> = {
+  'KEHADIRAN': 'Kehadiran',
+  'LAPORAN_MINGGUAN': 'Laporan Mingguan',
+  'CARTA_ORGANISASI': 'Carta Organisasi',
+  'RANCANGAN_TAHUNAN': 'Rancangan Tahunan'
+};
+
 export interface AppState {
   currentTab: 'INTERNAL' | 'EXTERNAL';
-  view: 'HOME' | 'UNIT_DASHBOARD' | 'FORM_REPORT' | 'VIEW_ATTENDANCE' | 'FORM_ATTENDANCE' | 'VIEW_ORG' | 'VIEW_PLAN' | 'VIEW_GALLERY' | 'MANAGE_TEACHERS' | 'MEETING_SCHEDULE';
+  view: 'HOME' | 'UNIT_DASHBOARD' | 'FORM_REPORT' | 'VIEW_ATTENDANCE' | 'FORM_ATTENDANCE' | 'VIEW_ORG' | 'VIEW_PLAN' | 'VIEW_GALLERY' | 'MANAGE_TEACHERS' | 'MEETING_SCHEDULE' | 'COORDINATOR';
   selectedYear: number;
   selectedUnit: Unit | null;
   user: User;
+  coordinatorCategory?: UnitCategory; // For coordinator view
 }
 
 export const CATEGORY_LABELS: Record<UnitCategory, string> = {
