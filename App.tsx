@@ -12,8 +12,9 @@ import { AnnualPlanManager } from './modules/AnnualPlanManager';
 import { AttendanceForm } from './modules/AttendanceForm';
 import { AttendanceList } from './modules/AttendanceList';
 import { MeetingScheduleManager } from './modules/MeetingScheduleManager';
+import { CoordinatorManager } from './modules/CoordinatorManager';
 import { ExternalTab } from './modules/ExternalTab';
-import { AppState, UserRole } from './types';
+import { AppState, UserRole, UnitCategory } from './types';
 import { Button } from './components/ui/Button';
 import { Input } from './components/ui/Input';
 import { AttendanceRecord } from './services/firebaseService';
@@ -126,17 +127,48 @@ const App: React.FC = () => {
               <button onClick={() => handleTabChange('EXTERNAL')} className={`flex-1 py-3 px-2 rounded-lg text-xs font-bold transition-all ${state.currentTab === 'EXTERNAL' ? 'bg-red-50 text-red-700' : 'text-gray-400'}`}>PENCAPAIAN</button>
             </div>
 
-            {/* Admin Meeting Schedule Button */}
+            {/* Admin Buttons */}
             {state.user.role === UserRole.SUPER_ADMIN && state.currentTab === 'INTERNAL' && (
-              <button
-                onClick={() => setState(prev => ({ ...prev, view: 'MEETING_SCHEDULE' }))}
-                className="mb-4 bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-3 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 font-bold text-sm"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                Urus Jadual Perjumpaan
-              </button>
+              <div className="space-y-3 mb-4">
+                {/* Meeting Schedule Button */}
+                <button
+                  onClick={() => setState(prev => ({ ...prev, view: 'MEETING_SCHEDULE' }))}
+                  className="w-full bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-3 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 font-bold text-sm"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Urus Jadual Perjumpaan
+                </button>
+
+                {/* Coordinator Buttons */}
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-3 rounded-xl border border-amber-200">
+                  <p className="text-[10px] text-amber-700 font-bold uppercase mb-2 text-center">Panel Penyelaras</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => setState(prev => ({ ...prev, view: 'COORDINATOR', coordinatorCategory: UnitCategory.UNIT_BERUNIFORM }))}
+                      className="bg-green-600 hover:bg-green-700 text-white px-2 py-2 rounded-lg font-bold text-[10px] transition-all flex flex-col items-center gap-1"
+                    >
+                      <span className="text-lg">🎖️</span>
+                      <span>UB</span>
+                    </button>
+                    <button
+                      onClick={() => setState(prev => ({ ...prev, view: 'COORDINATOR', coordinatorCategory: UnitCategory.KELAB_PERSATUAN }))}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-2 py-2 rounded-lg font-bold text-[10px] transition-all flex flex-col items-center gap-1"
+                    >
+                      <span className="text-lg">🏆</span>
+                      <span>KP</span>
+                    </button>
+                    <button
+                      onClick={() => setState(prev => ({ ...prev, view: 'COORDINATOR', coordinatorCategory: UnitCategory.SATU_M_SATU_S }))}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-2 rounded-lg font-bold text-[10px] transition-all flex flex-col items-center gap-1"
+                    >
+                      <span className="text-lg">⚽</span>
+                      <span>1M1S</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
             <AnimatePresence mode="wait">
@@ -163,8 +195,23 @@ const App: React.FC = () => {
       );
     }
 
+    // Coordinator Manager (Admin only)
+    if (state.view === 'COORDINATOR' && state.coordinatorCategory) {
+      return (
+        <AnimatePresence mode="wait">
+          <motion.div key={state.view + state.coordinatorCategory} initial="initial" animate="in" exit="out" variants={pageVariants} transition={{ duration: 0.2 }}>
+            <CoordinatorManager
+              category={state.coordinatorCategory}
+              year={state.selectedYear}
+              onBack={() => setState(prev => ({ ...prev, view: 'HOME', coordinatorCategory: undefined }))}
+            />
+          </motion.div>
+        </AnimatePresence>
+      );
+    }
+
     // Guard clause for unit
-    if (!state.selectedUnit && state.view !== 'HOME' && state.view !== 'MEETING_SCHEDULE') {
+    if (!state.selectedUnit && state.view !== 'HOME' && state.view !== 'MEETING_SCHEDULE' && state.view !== 'COORDINATOR') {
         setState(prev => ({ ...prev, view: 'HOME' }));
         return null;
     }
@@ -172,7 +219,7 @@ const App: React.FC = () => {
     return (
       <AnimatePresence mode="wait">
         <motion.div key={state.view} initial="initial" animate="in" exit="out" variants={pageVariants} transition={{ duration: 0.2 }}>
-          {state.view === 'UNIT_DASHBOARD' && state.selectedUnit && <UnitDashboard unit={state.selectedUnit} userRole={state.user.role} onNavigate={v => setState(prev => ({ ...prev, view: v }))} onBack={() => setState(prev => ({ ...prev, view: 'HOME' }))} />}
+          {state.view === 'UNIT_DASHBOARD' && state.selectedUnit && <UnitDashboard unit={state.selectedUnit} userRole={state.user.role} year={state.selectedYear} onNavigate={v => setState(prev => ({ ...prev, view: v }))} onBack={() => setState(prev => ({ ...prev, view: 'HOME' }))} />}
           {state.view === 'VIEW_GALLERY' && state.selectedUnit && <GalleryManager unit={state.selectedUnit} year={state.selectedYear} userRole={state.user.role} onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))} />}
           {state.view === 'FORM_REPORT' && state.selectedUnit && <WeeklyReportForm unit={state.selectedUnit} year={state.selectedYear} onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))} />}
           {state.view === 'MANAGE_TEACHERS' && state.selectedUnit && <TeacherManager unit={state.selectedUnit} userRole={state.user.role} onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))} />}

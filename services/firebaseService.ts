@@ -1,7 +1,7 @@
 
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, push, set, serverTimestamp, query, orderByChild, equalTo, get, remove, update } from "firebase/database";
-import { MeetingSchedule, WeeklyReportData } from '../types';
+import { MeetingSchedule, WeeklyReportData, UnitFlare } from '../types';
 import type { Achievement } from '../types';
 
 // Konfigurasi ini BETUL untuk projek anda
@@ -493,6 +493,106 @@ export const firebaseService = {
       return { success: true };
     } catch (e) {
       console.error("Gagal padam rancangan:", e);
+      throw e;
+    }
+  },
+
+  // ======= FLARE/PERINGATAN FUNCTIONS =======
+  saveFlare: async (flare: UnitFlare) => {
+    try {
+      const newRef = push(ref(db, 'unit_flares'));
+      await set(newRef, {
+        ...flare,
+        createdAt: Date.now()
+      });
+      console.log("Flare disimpan:", newRef.key);
+      return { success: true, id: newRef.key };
+    } catch (e) {
+      console.error("Ralat simpan flare:", e);
+      throw e;
+    }
+  },
+
+  getFlaresByUnit: async (unitName: string, year: number): Promise<UnitFlare[]> => {
+    try {
+      const dbRef = ref(db, 'unit_flares');
+      const snapshot = await get(dbRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const flares: UnitFlare[] = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+
+        return flares.filter(f =>
+          f.unitName?.toLowerCase().trim() === unitName.toLowerCase().trim() &&
+          f.year === year
+        );
+      }
+      return [];
+    } catch (e) {
+      console.error("Gagal ambil flares:", e);
+      return [];
+    }
+  },
+
+  getFlaresByCategory: async (category: string, year: number): Promise<UnitFlare[]> => {
+    try {
+      const dbRef = ref(db, 'unit_flares');
+      const snapshot = await get(dbRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const flares: UnitFlare[] = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+
+        return flares.filter(f => f.category === category && f.year === year);
+      }
+      return [];
+    } catch (e) {
+      console.error("Gagal ambil flares by category:", e);
+      return [];
+    }
+  },
+
+  deleteFlare: async (flareId: string) => {
+    try {
+      const flareRef = ref(db, `unit_flares/${flareId}`);
+      await remove(flareRef);
+      console.log("Flare dipadam:", flareId);
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal padam flare:", e);
+      throw e;
+    }
+  },
+
+  deleteFlareByTypeAndUnit: async (unitName: string, flareType: string, year: number, weekNumber?: number) => {
+    try {
+      const dbRef = ref(db, 'unit_flares');
+      const snapshot = await get(dbRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        for (const key of Object.keys(data)) {
+          const flare = data[key];
+          const matchesUnit = flare.unitName?.toLowerCase().trim() === unitName.toLowerCase().trim();
+          const matchesType = flare.flareType === flareType;
+          const matchesYear = flare.year === year;
+          const matchesWeek = weekNumber ? flare.weekNumber === weekNumber : true;
+
+          if (matchesUnit && matchesType && matchesYear && matchesWeek) {
+            await remove(ref(db, `unit_flares/${key}`));
+            console.log("Flare auto-removed:", key);
+          }
+        }
+      }
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal auto-remove flare:", e);
       throw e;
     }
   }

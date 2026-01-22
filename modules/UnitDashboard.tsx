@@ -1,21 +1,50 @@
 
-import React, { useState } from 'react';
-import { Unit, UserRole } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Unit, UserRole, UnitFlare, FlareType, FLARE_LABELS } from '../types';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { gasService } from '../services/gasService';
+import { firebaseService } from '../services/firebaseService';
 
 interface UnitDashboardProps {
   unit: Unit;
   userRole: UserRole;
+  year: number;
   onNavigate: (view: any) => void;
   onBack: () => void;
 }
 
-export const UnitDashboard: React.FC<UnitDashboardProps> = ({ unit, userRole, onNavigate, onBack }) => {
+export const UnitDashboard: React.FC<UnitDashboardProps> = ({ unit, userRole, year, onNavigate, onBack }) => {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [flares, setFlares] = useState<UnitFlare[]>([]);
 
   const isAdmin = userRole === UserRole.SUPER_ADMIN || userRole === UserRole.UNIT_ADMIN;
+
+  // Fetch flares for this unit
+  useEffect(() => {
+    const loadFlares = async () => {
+      try {
+        const data = await firebaseService.getFlaresByUnit(unit.name, year);
+        setFlares(data);
+      } catch (e) {
+        console.error("Gagal load flares:", e);
+      }
+    };
+    loadFlares();
+  }, [unit.name, year]);
+
+  // Map flare types to module IDs
+  const getFlareForModule = (moduleId: string): UnitFlare | undefined => {
+    const flareMap: Record<string, FlareType> = {
+      'ATTENDANCE': 'KEHADIRAN',
+      'REPORT': 'LAPORAN_MINGGUAN',
+      'ORG': 'CARTA_ORGANISASI',
+      'PLAN': 'RANCANGAN_TAHUNAN'
+    };
+    const flareType = flareMap[moduleId];
+    if (!flareType) return undefined;
+    return flares.find(f => f.flareType === flareType);
+  };
 
   const handleGenerateFolders = async () => {
     if (!isAdmin) return;
@@ -136,15 +165,40 @@ export const UnitDashboard: React.FC<UnitDashboardProps> = ({ unit, userRole, on
       {/* Grid Menu */}
       <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 px-1">Menu Utama</h3>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {modules.map((mod) => (
-          <Card key={mod.id} hoverable onClick={mod.action} className="group !p-4 flex flex-col items-center text-center justify-center min-h-[160px]">
-            <div className={`w-14 h-14 rounded-2xl ${mod.color} flex items-center justify-center text-2xl mb-4 shadow-sm group-hover:scale-110 transition-transform duration-300`}>
-              {mod.icon}
-            </div>
-            <h3 className="font-bold text-gray-800 text-sm md:text-base leading-tight group-hover:text-red-700">{mod.title}</h3>
-            <p className="text-xs text-gray-400 mt-1">{mod.desc}</p>
-          </Card>
-        ))}
+        {modules.map((mod) => {
+          const flare = getFlareForModule(mod.id);
+          return (
+            <Card key={mod.id} hoverable onClick={mod.action} className="group !p-4 flex flex-col items-center text-center justify-center min-h-[160px] relative">
+              {/* Flare Badge */}
+              {flare && (
+                <div className="absolute -top-2 -right-2 z-10">
+                  <div className="relative">
+                    <span className="flex h-6 w-6">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-6 w-6 bg-red-500 items-center justify-center text-white text-[10px] font-bold">!</span>
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className={`w-14 h-14 rounded-2xl ${mod.color} flex items-center justify-center text-2xl mb-4 shadow-sm group-hover:scale-110 transition-transform duration-300`}>
+                {mod.icon}
+              </div>
+              <h3 className="font-bold text-gray-800 text-sm md:text-base leading-tight group-hover:text-red-700">{mod.title}</h3>
+              <p className="text-xs text-gray-400 mt-1">{mod.desc}</p>
+
+              {/* Flare Message */}
+              {flare && (
+                <div className="mt-2 px-2 py-1 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-[9px] text-red-600 font-bold">
+                    {flare.weekNumber ? `Minggu ${flare.weekNumber}` : 'Sila lengkapkan'}
+                    {flare.message && ` - ${flare.message}`}
+                  </p>
+                </div>
+              )}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
