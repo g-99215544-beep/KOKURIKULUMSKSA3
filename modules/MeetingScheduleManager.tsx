@@ -10,70 +10,68 @@ interface MeetingScheduleManagerProps {
 }
 
 // Default Takwim Kokurikulum 2026
-// Mengikut kalendar kokurikulum sekolah Malaysia
+// Mengikut Takwim Aktiviti Kokurikulum SK Sri Aman 2026
+// UB & KP berselang-seli setiap minggu (petang)
+// 1M1S dijalankan setiap minggu (pagi) - mengikut tarikh UB dan KP
 const DEFAULT_TAKWIM_2026: Omit<MeetingSchedule, 'id' | 'createdAt'>[] = [
-  // ============ UNIT BERUNIFORM ============
-  // Biasanya hari Khamis, 1.10 - 2.10 petang
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 1, meetingDate: '2026-01-22', deadline: '2026-01-25', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 2, meetingDate: '2026-01-29', deadline: '2026-02-01', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 3, meetingDate: '2026-02-05', deadline: '2026-02-08', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 4, meetingDate: '2026-02-12', deadline: '2026-02-15', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 5, meetingDate: '2026-02-26', deadline: '2026-03-01', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 6, meetingDate: '2026-03-05', deadline: '2026-03-08', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 7, meetingDate: '2026-03-12', deadline: '2026-03-15', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 8, meetingDate: '2026-04-02', deadline: '2026-04-05', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 9, meetingDate: '2026-04-09', deadline: '2026-04-12', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 10, meetingDate: '2026-04-16', deadline: '2026-04-19', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 11, meetingDate: '2026-04-23', deadline: '2026-04-26', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 12, meetingDate: '2026-06-18', deadline: '2026-06-21', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 13, meetingDate: '2026-06-25', deadline: '2026-06-28', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 14, meetingDate: '2026-07-02', deadline: '2026-07-05', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 15, meetingDate: '2026-07-09', deadline: '2026-07-12', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 16, meetingDate: '2026-08-06', deadline: '2026-08-09', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 17, meetingDate: '2026-08-13', deadline: '2026-08-16', year: 2026 },
-  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 18, meetingDate: '2026-08-20', deadline: '2026-08-23', year: 2026 },
+  // ============ UNIT BERUNIFORM (UB) ============
+  // Berselang-seli dengan KP, dijalankan waktu petang
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 1, meetingDate: '2026-01-21', deadline: '2026-01-24', year: 2026 },
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 2, meetingDate: '2026-02-04', deadline: '2026-02-07', year: 2026 },
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 3, meetingDate: '2026-02-25', deadline: '2026-02-28', year: 2026 },
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 4, meetingDate: '2026-03-11', deadline: '2026-03-14', year: 2026 },
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 5, meetingDate: '2026-05-13', deadline: '2026-05-16', year: 2026 },
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 6, meetingDate: '2026-06-24', deadline: '2026-06-27', year: 2026 },
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 7, meetingDate: '2026-07-08', deadline: '2026-07-11', year: 2026 },
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 8, meetingDate: '2026-07-22', deadline: '2026-07-25', year: 2026 },
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 9, meetingDate: '2026-08-05', deadline: '2026-08-08', year: 2026 },
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 10, meetingDate: '2026-08-19', deadline: '2026-08-22', year: 2026 },
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 11, meetingDate: '2026-09-09', deadline: '2026-09-12', year: 2026 },
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 12, meetingDate: '2026-09-23', deadline: '2026-09-26', year: 2026 },
+  { category: UnitCategory.UNIT_BERUNIFORM, weekNumber: 13, meetingDate: '2026-10-07', deadline: '2026-10-10', year: 2026 },
 
-  // ============ KELAB & PERSATUAN ============
-  // Biasanya hari Rabu, 1.10 - 2.10 petang
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 1, meetingDate: '2026-01-21', deadline: '2026-01-24', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 2, meetingDate: '2026-01-28', deadline: '2026-01-31', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 3, meetingDate: '2026-02-04', deadline: '2026-02-07', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 4, meetingDate: '2026-02-11', deadline: '2026-02-14', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 5, meetingDate: '2026-02-25', deadline: '2026-02-28', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 6, meetingDate: '2026-03-04', deadline: '2026-03-07', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 7, meetingDate: '2026-03-11', deadline: '2026-03-14', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 8, meetingDate: '2026-04-01', deadline: '2026-04-04', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 9, meetingDate: '2026-04-08', deadline: '2026-04-11', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 10, meetingDate: '2026-04-15', deadline: '2026-04-18', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 11, meetingDate: '2026-04-22', deadline: '2026-04-25', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 12, meetingDate: '2026-06-17', deadline: '2026-06-20', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 13, meetingDate: '2026-06-24', deadline: '2026-06-27', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 14, meetingDate: '2026-07-01', deadline: '2026-07-04', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 15, meetingDate: '2026-07-08', deadline: '2026-07-11', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 16, meetingDate: '2026-08-05', deadline: '2026-08-08', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 17, meetingDate: '2026-08-12', deadline: '2026-08-15', year: 2026 },
-  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 18, meetingDate: '2026-08-19', deadline: '2026-08-22', year: 2026 },
+  // ============ KELAB & PERSATUAN (KP) ============
+  // Berselang-seli dengan UB, dijalankan waktu petang
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 1, meetingDate: '2026-01-28', deadline: '2026-01-31', year: 2026 },
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 2, meetingDate: '2026-02-11', deadline: '2026-02-14', year: 2026 },
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 3, meetingDate: '2026-03-04', deadline: '2026-03-07', year: 2026 },
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 4, meetingDate: '2026-03-18', deadline: '2026-03-21', year: 2026 },
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 5, meetingDate: '2026-06-10', deadline: '2026-06-13', year: 2026 },
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 6, meetingDate: '2026-07-01', deadline: '2026-07-04', year: 2026 },
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 7, meetingDate: '2026-07-15', deadline: '2026-07-18', year: 2026 },
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 8, meetingDate: '2026-07-29', deadline: '2026-08-01', year: 2026 },
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 9, meetingDate: '2026-08-12', deadline: '2026-08-15', year: 2026 },
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 10, meetingDate: '2026-08-26', deadline: '2026-08-29', year: 2026 },
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 11, meetingDate: '2026-09-09', deadline: '2026-09-12', year: 2026 },
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 12, meetingDate: '2026-09-30', deadline: '2026-10-03', year: 2026 },
+  { category: UnitCategory.KELAB_PERSATUAN, weekNumber: 13, meetingDate: '2026-10-07', deadline: '2026-10-10', year: 2026 },
 
   // ============ 1 MURID 1 SUKAN (1M1S) ============
-  // Biasanya hari Selasa, 1.10 - 2.10 petang
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 1, meetingDate: '2026-01-20', deadline: '2026-01-23', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 2, meetingDate: '2026-01-27', deadline: '2026-01-30', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 3, meetingDate: '2026-02-03', deadline: '2026-02-06', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 4, meetingDate: '2026-02-10', deadline: '2026-02-13', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 5, meetingDate: '2026-02-24', deadline: '2026-02-27', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 6, meetingDate: '2026-03-03', deadline: '2026-03-06', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 7, meetingDate: '2026-03-10', deadline: '2026-03-13', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 8, meetingDate: '2026-03-31', deadline: '2026-04-03', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 9, meetingDate: '2026-04-07', deadline: '2026-04-10', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 10, meetingDate: '2026-04-14', deadline: '2026-04-17', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 11, meetingDate: '2026-04-21', deadline: '2026-04-24', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 12, meetingDate: '2026-06-16', deadline: '2026-06-19', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 13, meetingDate: '2026-06-23', deadline: '2026-06-26', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 14, meetingDate: '2026-06-30', deadline: '2026-07-03', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 15, meetingDate: '2026-07-07', deadline: '2026-07-10', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 16, meetingDate: '2026-08-04', deadline: '2026-08-07', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 17, meetingDate: '2026-08-11', deadline: '2026-08-14', year: 2026 },
-  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 18, meetingDate: '2026-08-18', deadline: '2026-08-21', year: 2026 },
+  // Dijalankan SETIAP minggu pada waktu PAGI (mengikut semua tarikh UB & KP)
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 1, meetingDate: '2026-01-21', deadline: '2026-01-24', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 2, meetingDate: '2026-01-28', deadline: '2026-01-31', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 3, meetingDate: '2026-02-04', deadline: '2026-02-07', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 4, meetingDate: '2026-02-11', deadline: '2026-02-14', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 5, meetingDate: '2026-02-25', deadline: '2026-02-28', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 6, meetingDate: '2026-03-04', deadline: '2026-03-07', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 7, meetingDate: '2026-03-11', deadline: '2026-03-14', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 8, meetingDate: '2026-03-18', deadline: '2026-03-21', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 9, meetingDate: '2026-05-13', deadline: '2026-05-16', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 10, meetingDate: '2026-06-10', deadline: '2026-06-13', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 11, meetingDate: '2026-06-24', deadline: '2026-06-27', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 12, meetingDate: '2026-07-01', deadline: '2026-07-04', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 13, meetingDate: '2026-07-08', deadline: '2026-07-11', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 14, meetingDate: '2026-07-15', deadline: '2026-07-18', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 15, meetingDate: '2026-07-22', deadline: '2026-07-25', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 16, meetingDate: '2026-07-29', deadline: '2026-08-01', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 17, meetingDate: '2026-08-05', deadline: '2026-08-08', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 18, meetingDate: '2026-08-12', deadline: '2026-08-15', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 19, meetingDate: '2026-08-19', deadline: '2026-08-22', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 20, meetingDate: '2026-08-26', deadline: '2026-08-29', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 21, meetingDate: '2026-09-09', deadline: '2026-09-12', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 22, meetingDate: '2026-09-23', deadline: '2026-09-26', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 23, meetingDate: '2026-09-30', deadline: '2026-10-03', year: 2026 },
+  { category: UnitCategory.SATU_M_SATU_S, weekNumber: 24, meetingDate: '2026-10-07', deadline: '2026-10-10', year: 2026 },
 ];
 
 export const MeetingScheduleManager: React.FC<MeetingScheduleManagerProps> = ({ year, onBack }) => {
@@ -238,11 +236,11 @@ export const MeetingScheduleManager: React.FC<MeetingScheduleManagerProps> = ({ 
     }
   };
 
-  const getCategoryDayLabel = (cat: UnitCategory) => {
+  const getCategoryTimeLabel = (cat: UnitCategory) => {
     switch (cat) {
-      case UnitCategory.SATU_M_SATU_S: return 'Selasa';
-      case UnitCategory.KELAB_PERSATUAN: return 'Rabu';
-      case UnitCategory.UNIT_BERUNIFORM: return 'Khamis';
+      case UnitCategory.SATU_M_SATU_S: return 'Pagi (setiap minggu)';
+      case UnitCategory.KELAB_PERSATUAN: return 'Petang (berselang-seli dgn UB)';
+      case UnitCategory.UNIT_BERUNIFORM: return 'Petang (berselang-seli dgn KP)';
     }
   };
 
@@ -305,7 +303,7 @@ export const MeetingScheduleManager: React.FC<MeetingScheduleManagerProps> = ({ 
                 <div>
                   <h3 className="text-lg font-bold text-gray-800">{CATEGORY_LABELS[cat]}</h3>
                   <p className="text-[10px] text-gray-400 font-medium uppercase mt-0.5">
-                    Hari: {getCategoryDayLabel(cat)} • 1.10 - 2.10 petang
+                    {getCategoryTimeLabel(cat)}
                   </p>
                 </div>
                 <span className={`text-xs font-bold px-3 py-1 rounded-full ${getCategoryColor(cat)} border`}>
