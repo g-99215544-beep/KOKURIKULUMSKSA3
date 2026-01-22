@@ -16,9 +16,10 @@ interface OrgChartManagerProps {
   year: number;
   onBack: () => void;
   isAuthenticated: boolean;
+  onAuthenticate: () => void;
 }
 
-export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, onBack, isAuthenticated }) => {
+export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, onBack, isAuthenticated, onAuthenticate }) => {
   const [firebaseCharts, setFirebaseCharts] = useState<OrgChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -100,6 +101,11 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
     if (!isValidPassword) {
       setEditPasswordError('Kata laluan salah!');
       return;
+    }
+
+    // AUTO LOGIN: Authenticate user after successful password entry
+    if (editPassword !== 'admin') {
+      onAuthenticate();
     }
 
     // Password valid, proceed to edit
@@ -459,6 +465,7 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
          onConfirm={handleDeleteConfirm}
          unitPassword={unit.password}
          isAuthenticated={isAuthenticated}
+         onAuthenticate={onAuthenticate}
       />
 
       {/* VIEW CHART DETAIL MODAL */}

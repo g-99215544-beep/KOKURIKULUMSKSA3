@@ -9,6 +9,7 @@ interface DeleteConfirmationModalProps {
   onConfirm: () => void;
   unitPassword?: string; // The correct password for validation
   isAuthenticated?: boolean; // Skip password check if authenticated
+  onAuthenticate?: () => void; // Callback to authenticate user after successful password
 }
 
 export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
@@ -16,7 +17,8 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
   onClose,
   onConfirm,
   unitPassword,
-  isAuthenticated = false
+  isAuthenticated = false,
+  onAuthenticate
 }) => {
   const [inputPassword, setInputPassword] = useState('');
   const [error, setError] = useState('');
@@ -44,6 +46,12 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
 
     if (inputPassword.trim().toUpperCase() === unitPassword.trim().toUpperCase() || inputPassword === 'admin') {
        setIsDeleting(true);
+
+       // AUTO LOGIN: Authenticate user after successful password entry
+       if (onAuthenticate && inputPassword !== 'admin') {
+         onAuthenticate();
+       }
+
        await onConfirm();
        setIsDeleting(false);
        setInputPassword('');
