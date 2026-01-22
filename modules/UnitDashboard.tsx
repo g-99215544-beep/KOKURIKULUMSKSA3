@@ -275,8 +275,8 @@ export const UnitDashboard: React.FC<UnitDashboardProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-bold text-center">Padam Fail?</h3>
-              <p className="text-sm opacity-90 text-center mt-2">Tindakan ini tidak boleh dikembalikan. Sila masukkan kata laluan unit untuk pengesahan.</p>
+              <h3 className="text-xl font-bold text-center">Log Masuk Sebagai Penyelaras</h3>
+              <p className="text-sm opacity-90 text-center mt-2">Masukkan kata laluan unit untuk log masuk. Penyelaras boleh edit/padam semua rekod.</p>
             </div>
 
             {/* Modal Body */}
@@ -316,7 +316,7 @@ export const UnitDashboard: React.FC<UnitDashboardProps> = ({
                   type="submit"
                   className="flex-1 bg-blue-600 hover:bg-blue-700"
                 >
-                  Sahkan Padam
+                  Log Masuk
                 </Button>
               </div>
             </form>
