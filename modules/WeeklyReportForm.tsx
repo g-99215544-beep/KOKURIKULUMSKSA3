@@ -18,9 +18,10 @@ interface WeeklyReportFormProps {
   unit: Unit;
   year: number;
   onBack: () => void;
+  isAuthenticated: boolean;
 }
 
-export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, onBack }) => {
+export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, onBack, isAuthenticated }) => {
   const [firebaseReports, setFirebaseReports] = useState<WeeklyReportData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);

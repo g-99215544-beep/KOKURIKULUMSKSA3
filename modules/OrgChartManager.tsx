@@ -15,9 +15,10 @@ interface OrgChartManagerProps {
   unit: Unit;
   year: number;
   onBack: () => void;
+  isAuthenticated: boolean;
 }
 
-export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, onBack }) => {
+export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, onBack, isAuthenticated }) => {
   const [firebaseCharts, setFirebaseCharts] = useState<OrgChartData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -123,10 +124,25 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
     setPendingEditChart(null);
   };
 
-  // Handle requesting edit (show password modal first)
+  // Handle requesting edit (show password modal first, or skip if authenticated)
   const handleRequestEdit = (chart: OrgChartData) => {
-    setPendingEditChart(chart);
-    setShowEditPasswordModal(true);
+    if (isAuthenticated) {
+      // If authenticated, skip password modal and directly open edit
+      setEditingChart(chart);
+      setFormData({
+        pengerusi: chart.pengerusi || '',
+        naibPengerusi: chart.naibPengerusi || '',
+        setiausaha: chart.setiausaha || '',
+        penSetiausaha: chart.penSetiausaha || '',
+        bendahari: chart.bendahari || '',
+        penBendahari: chart.penBendahari || '',
+        ajk: chart.ajk || ''
+      });
+      setShowModal(true);
+    } else {
+      setPendingEditChart(chart);
+      setShowEditPasswordModal(true);
+    }
   };
 
   // Handle Deletion
@@ -442,6 +458,7 @@ export const OrgChartManager: React.FC<OrgChartManagerProps> = ({ unit, year, on
          onClose={() => setChartToDelete(null)}
          onConfirm={handleDeleteConfirm}
          unitPassword={unit.password}
+         isAuthenticated={isAuthenticated}
       />
 
       {/* VIEW CHART DETAIL MODAL */}

@@ -11,9 +11,10 @@ interface AttendanceListProps {
   onBack: () => void;
   onCreateNew: () => void;
   onEditRecord?: (record: AttendanceRecord) => void;
+  isAuthenticated: boolean;
 }
 
-export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBack, onCreateNew, onEditRecord }) => {
+export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBack, onCreateNew, onEditRecord, isAuthenticated }) => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
@@ -63,14 +64,17 @@ export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBa
   const handleDeleteConfirm = async () => {
     if (!recordToDelete || !recordToDelete.id) return;
 
-    // Validate password
-    const isValidPassword =
-      deletePassword.trim().toUpperCase() === (unit.password || '').toUpperCase() ||
-      deletePassword === 'admin';
+    // Skip password validation if authenticated
+    if (!isAuthenticated) {
+      // Validate password
+      const isValidPassword =
+        deletePassword.trim().toUpperCase() === (unit.password || '').toUpperCase() ||
+        deletePassword === 'admin';
 
-    if (!isValidPassword) {
-      setDeleteError('Kata laluan salah!');
-      return;
+      if (!isValidPassword) {
+        setDeleteError('Kata laluan salah!');
+        return;
+      }
     }
 
     setIsDeleting(true);
@@ -92,17 +96,20 @@ export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBa
   const handleEditConfirm = () => {
     if (!recordToEdit) return;
 
-    // Validate password
-    const isValidPassword =
-      editPassword.trim().toUpperCase() === (unit.password || '').toUpperCase() ||
-      editPassword === 'admin';
+    // Skip password validation if authenticated
+    if (!isAuthenticated) {
+      // Validate password
+      const isValidPassword =
+        editPassword.trim().toUpperCase() === (unit.password || '').toUpperCase() ||
+        editPassword === 'admin';
 
-    if (!isValidPassword) {
-      setEditError('Kata laluan salah!');
-      return;
+      if (!isValidPassword) {
+        setEditError('Kata laluan salah!');
+        return;
+      }
     }
 
-    // Password valid, proceed to edit
+    // Password valid or authenticated, proceed to edit
     if (onEditRecord) {
       onEditRecord(recordToEdit);
     }
