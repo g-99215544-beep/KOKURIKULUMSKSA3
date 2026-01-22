@@ -11,25 +11,16 @@ interface AttendanceListProps {
   onBack: () => void;
   onCreateNew: () => void;
   onEditRecord?: (record: AttendanceRecord) => void;
-  isAuthenticated: boolean;
-  onAuthenticate: () => void;
 }
 
-export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBack, onCreateNew, onEditRecord, isAuthenticated, onAuthenticate }) => {
+export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBack, onCreateNew, onEditRecord }) => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
 
   // Delete Modal State
   const [recordToDelete, setRecordToDelete] = useState<AttendanceRecord | null>(null);
-  const [deletePassword, setDeletePassword] = useState('');
-  const [deleteError, setDeleteError] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Edit Modal State (for password confirmation before edit)
-  const [recordToEdit, setRecordToEdit] = useState<AttendanceRecord | null>(null);
-  const [editPassword, setEditPassword] = useState('');
-  const [editError, setEditError] = useState('');
 
   const fetchRecords = async () => {
     setIsLoading(true);
@@ -65,31 +56,11 @@ export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBa
   const handleDeleteConfirm = async () => {
     if (!recordToDelete || !recordToDelete.id) return;
 
-    // Skip password validation if authenticated
-    if (!isAuthenticated) {
-      // Validate password
-      const isValidPassword =
-        deletePassword.trim().toUpperCase() === (unit.password || '').toUpperCase() ||
-        deletePassword === 'admin';
-
-      if (!isValidPassword) {
-        setDeleteError('Kata laluan salah!');
-        return;
-      }
-
-      // AUTO LOGIN: Authenticate user after successful password entry
-      if (deletePassword !== 'admin') {
-        onAuthenticate();
-      }
-    }
-
     setIsDeleting(true);
     try {
       await firebaseService.deleteAttendance(recordToDelete.id);
       alert('✅ Rekod kehadiran berjaya dipadam.');
       setRecordToDelete(null);
-      setDeletePassword('');
-      setDeleteError('');
       fetchRecords();
     } catch (e: any) {
       alert('❌ Gagal memadam: ' + e.message);
@@ -98,35 +69,11 @@ export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBa
     }
   };
 
-  // Handle Edit Password Confirmation
-  const handleEditConfirm = () => {
-    if (!recordToEdit) return;
-
-    // Skip password validation if authenticated
-    if (!isAuthenticated) {
-      // Validate password
-      const isValidPassword =
-        editPassword.trim().toUpperCase() === (unit.password || '').toUpperCase() ||
-        editPassword === 'admin';
-
-      if (!isValidPassword) {
-        setEditError('Kata laluan salah!');
-        return;
-      }
-
-      // AUTO LOGIN: Authenticate user after successful password entry
-      if (editPassword !== 'admin') {
-        onAuthenticate();
-      }
-    }
-
-    // Password valid or authenticated, proceed to edit
+  // Handle Edit
+  const handleEditRequest = (record: AttendanceRecord) => {
     if (onEditRecord) {
-      onEditRecord(recordToEdit);
+      onEditRecord(record);
     }
-    setRecordToEdit(null);
-    setEditPassword('');
-    setEditError('');
   };
 
   return (
@@ -205,7 +152,7 @@ export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBa
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setRecordToEdit(record);
+                        handleEditRequest(record);
                       }}
                       className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors"
                     >
@@ -300,11 +247,7 @@ export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBa
       {/* Delete Confirmation Modal */}
       {recordToDelete && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => {
-            setRecordToDelete(null);
-            setDeletePassword('');
-            setDeleteError('');
-          }}></div>
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setRecordToDelete(null)}></div>
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative animate-scaleUp shadow-2xl z-10">
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
@@ -315,113 +258,28 @@ export const AttendanceList: React.FC<AttendanceListProps> = ({ unit, year, onBa
                 <span className="font-bold text-red-600">{recordToDelete.week}</span> - {new Date(recordToDelete.date).toLocaleDateString('ms-MY')}
               </p>
               <p className="text-xs text-gray-400 mt-2">
-                Tindakan ini tidak boleh dikembalikan. Sila masukkan kata laluan unit untuk pengesahan.
+                Tindakan ini tidak boleh dikembalikan.
               </p>
             </div>
 
-            <form onSubmit={(e) => { e.preventDefault(); handleDeleteConfirm(); }} className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wider text-center">Kata Laluan Unit</p>
-                <Input
-                  type="password"
-                  placeholder="Masukkan Kata Laluan"
-                  value={deletePassword}
-                  onChange={e => {
-                    setDeletePassword(e.target.value);
-                    setDeleteError('');
-                  }}
-                  className="text-center font-bold tracking-widest text-lg"
-                  autoFocus
-                />
-                {deleteError && <p className="text-xs text-red-600 font-bold text-center mt-2 animate-pulse">{deleteError}</p>}
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setRecordToDelete(null);
-                    setDeletePassword('');
-                    setDeleteError('');
-                  }}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200"
-                >
-                  Batal
-                </Button>
-                <Button
-                  type="submit"
-                  isLoading={isDeleting}
-                  className="flex-1 bg-red-600 hover:bg-red-700 shadow-red-200"
-                >
-                  {isDeleting ? 'Memadam...' : 'Sahkan Padam'}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Password Confirmation Modal */}
-      {recordToEdit && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => {
-            setRecordToEdit(null);
-            setEditPassword('');
-            setEditError('');
-          }}></div>
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative animate-scaleUp shadow-2xl z-10">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-                ✏️
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">Edit Rekod Kehadiran?</h3>
-              <p className="text-sm text-gray-500 mt-2">
-                <span className="font-bold text-blue-600">{recordToEdit.week}</span> - {new Date(recordToEdit.date).toLocaleDateString('ms-MY')}
-              </p>
-              <p className="text-xs text-gray-400 mt-2">
-                Sila masukkan kata laluan unit untuk membolehkan pengeditan.
-              </p>
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setRecordToDelete(null)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200"
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                onClick={handleDeleteConfirm}
+                isLoading={isDeleting}
+                className="flex-1 bg-red-600 hover:bg-red-700 shadow-red-200"
+              >
+                {isDeleting ? 'Memadam...' : 'Sahkan Padam'}
+              </Button>
             </div>
-
-            <form onSubmit={(e) => { e.preventDefault(); handleEditConfirm(); }} className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wider text-center">Kata Laluan Unit</p>
-                <Input
-                  type="password"
-                  placeholder="Masukkan Kata Laluan"
-                  value={editPassword}
-                  onChange={e => {
-                    setEditPassword(e.target.value);
-                    setEditError('');
-                  }}
-                  className="text-center font-bold tracking-widest text-lg"
-                  autoFocus
-                />
-                {editError && <p className="text-xs text-red-600 font-bold text-center mt-2 animate-pulse">{editError}</p>}
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setRecordToEdit(null);
-                    setEditPassword('');
-                    setEditError('');
-                  }}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200"
-                >
-                  Batal
-                </Button>
-                <Button
-                  type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 shadow-blue-200"
-                >
-                  Teruskan Edit
-                </Button>
-              </div>
-            </form>
           </div>
         </div>
       )}

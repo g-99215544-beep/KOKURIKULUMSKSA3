@@ -10,10 +10,9 @@ interface TeacherManagerProps {
   unit: Unit;
   userRole: UserRole;
   onBack: () => void;
-  isAuthenticated: boolean;
 }
 
-export const TeacherManager: React.FC<TeacherManagerProps> = ({ unit, userRole, onBack, isAuthenticated }) => {
+export const TeacherManager: React.FC<TeacherManagerProps> = ({ unit, userRole, onBack }) => {
   const [teachers, setTeachers] = useState<string[]>([]);
   const [newTeacherName, setNewTeacherName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
