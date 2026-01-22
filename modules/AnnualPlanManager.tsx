@@ -282,6 +282,14 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
         console.log("✅ PDF URL dikemaskini di Firebase");
       }
 
+      // Auto-remove flare for rancangan tahunan
+      try {
+        await firebaseService.deleteFlareByTypeAndUnit(unit.name, 'RANCANGAN_TAHUNAN', year);
+        console.log("Flare rancangan tahunan auto-removed for", unit.name);
+      } catch (flareError) {
+        console.log("No flare to remove or error:", flareError);
+      }
+
       const successMsg = isEditMode ? "✅ Rancangan Tahunan Berjaya Dikemaskini!" : "✅ Rancangan Tahunan Berjaya Disimpan!";
       alert(successMsg);
       setShowModal(false);

@@ -520,6 +520,15 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
         console.log("✅ PDF URL dikemaskini di Firebase");
       }
 
+      // Auto-remove flare for this weekly report
+      try {
+        const weekNum = parseInt(formData.perjumpaanKali.replace(/\D/g, '')) || undefined;
+        await firebaseService.deleteFlareByTypeAndUnit(unit.name, 'LAPORAN_MINGGUAN', year, weekNum);
+        console.log("Flare laporan mingguan auto-removed for", unit.name, formData.perjumpaanKali);
+      } catch (flareError) {
+        console.log("No flare to remove or error:", flareError);
+      }
+
       // SUCCESS: Clear draft and reset form
       if (!isEditMode) {
         clearDraft();

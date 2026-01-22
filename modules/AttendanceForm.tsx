@@ -210,6 +210,15 @@ export const AttendanceForm: React.FC<AttendanceFormProps> = ({ unit, year, onBa
               await gasService.uploadFile(file, `Kehadiran ${week} (${date})`, unit.name, year, 'KEHADIRAN');
             }
 
+            // Auto-remove flare for this attendance
+            try {
+              const weekNum = parseInt(week.replace(/\D/g, '')) || undefined;
+              await firebaseService.deleteFlareByTypeAndUnit(unit.name, 'KEHADIRAN', year, weekNum);
+              console.log("Flare kehadiran auto-removed for", unit.name, week);
+            } catch (flareError) {
+              console.log("No flare to remove or error:", flareError);
+            }
+
             const successMessage = isEditMode
               ? "✅ Kehadiran berjaya dikemaskini!"
               : "✅ Data berjaya disimpan & dimuat naik ke Drive!";
