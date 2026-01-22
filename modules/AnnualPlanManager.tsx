@@ -322,19 +322,6 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
             </div>
         </div>
 
-        {/* ADD BUTTON - Only show if no plan exists for this year */}
-        {year === 2026 && firebasePlans.length === 0 && (
-          <button
-             onClick={() => {
-               resetForm();
-               setShowModal(true);
-             }}
-             className="w-10 h-10 bg-orange-500 hover:bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-orange-200 active:scale-95 transition-all group"
-             title="Buat Rancangan Tahunan"
-          >
-             <svg className="w-5 h-5 group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-          </button>
-        )}
 
         {/* REFRESH BUTTON */}
         <button
@@ -704,6 +691,22 @@ export const AnnualPlanManager: React.FC<AnnualPlanManagerProps> = ({ unit, year
               </div>
            </div>
         </div>
+      )}
+
+      {/* FLOATING ADD BUTTON (Bottom Right) - Only show if no plan exists for this year */}
+      {year === 2026 && firebasePlans.length === 0 && (
+        <button
+          onClick={() => {
+            resetForm();
+            setShowModal(true);
+          }}
+          className="fixed bottom-10 right-10 z-[40] bg-orange-500 hover:bg-orange-600 text-white rounded-full p-6 shadow-[0_25px_50px_rgba(249,115,22,0.5)] hover:scale-110 active:scale-90 transition-all duration-300 border-4 border-white flex items-center justify-center group"
+          title="Buat Rancangan Tahunan"
+        >
+          <svg className="w-8 h-8 group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
       )}
 
     </div>

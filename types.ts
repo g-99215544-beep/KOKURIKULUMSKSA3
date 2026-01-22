@@ -129,7 +129,7 @@ export const FLARE_LABELS: Record<FlareType, string> = {
 
 export interface AppState {
   currentTab: 'INTERNAL' | 'EXTERNAL';
-  view: 'HOME' | 'UNIT_DASHBOARD' | 'FORM_REPORT' | 'VIEW_ATTENDANCE' | 'FORM_ATTENDANCE' | 'VIEW_ORG' | 'VIEW_PLAN' | 'VIEW_GALLERY' | 'MANAGE_TEACHERS' | 'MEETING_SCHEDULE' | 'COORDINATOR';
+  view: 'HOME' | 'UNIT_DASHBOARD' | 'FORM_REPORT' | 'VIEW_ATTENDANCE' | 'FORM_ATTENDANCE' | 'VIEW_ORG' | 'VIEW_PLAN' | 'VIEW_GALLERY' | 'MANAGE_TEACHERS' | 'MEETING_SCHEDULE' | 'COORDINATOR' | 'ADMIN_DASHBOARD';
   selectedYear: number;
   selectedUnit: Unit | null;
   user: User;

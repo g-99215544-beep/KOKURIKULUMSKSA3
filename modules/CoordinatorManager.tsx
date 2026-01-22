@@ -18,6 +18,9 @@ export const CoordinatorManager: React.FC<CoordinatorManagerProps> = ({ category
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Bulk assign state
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+
   // Flare form state
   const [selectedFlareTypes, setSelectedFlareTypes] = useState<FlareType[]>([]);
   const [weekNumber, setWeekNumber] = useState<number>(1);
@@ -102,6 +105,50 @@ export const CoordinatorManager: React.FC<CoordinatorManagerProps> = ({ category
     }
   };
 
+  const handleBulkAssignFlares = async () => {
+    if (selectedFlareTypes.length === 0) {
+      alert("Sila pilih sekurang-kurangnya satu tugasan.");
+      return;
+    }
+
+    if (!confirm(`Adakah anda pasti untuk tambah ${selectedFlareTypes.length} peringatan kepada SEMUA ${categoryUnits.length} unit?`)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      let successCount = 0;
+      for (const unit of categoryUnits) {
+        for (const flareType of selectedFlareTypes) {
+          const flare: UnitFlare = {
+            unitId: unit.id,
+            unitName: unit.name,
+            category: category,
+            flareType: flareType,
+            weekNumber: (flareType === 'KEHADIRAN' || flareType === 'LAPORAN_MINGGUAN') ? weekNumber : undefined,
+            message: customMessage || undefined,
+            assignedBy: category,
+            year: year
+          };
+
+          await firebaseService.saveFlare(flare);
+          successCount++;
+        }
+      }
+
+      alert(`✅ ${successCount} peringatan berjaya ditambah untuk ${categoryUnits.length} unit!`);
+      setShowBulkAssignModal(false);
+      setSelectedFlareTypes([]);
+      setWeekNumber(1);
+      setCustomMessage('');
+      loadFlares();
+    } catch (e: any) {
+      alert("❌ Gagal: " + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDeleteFlare = async (flareId: string) => {
     if (!confirm("Padam peringatan ini?")) return;
 
@@ -165,6 +212,24 @@ export const CoordinatorManager: React.FC<CoordinatorManagerProps> = ({ category
           <p className="text-[10px] text-gray-400 font-bold uppercase">Peringatan Aktif</p>
           <p className="text-2xl font-black text-red-600">{flares.length}</p>
         </div>
+      </div>
+
+      {/* Bulk Assign Button */}
+      <div className="mb-6">
+        <button
+          onClick={() => {
+            setSelectedFlareTypes([]);
+            setWeekNumber(1);
+            setCustomMessage('');
+            setShowBulkAssignModal(true);
+          }}
+          className="w-full bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-red-200 hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-3 group"
+        >
+          <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          <span>Tambah Peringatan Untuk Semua Unit</span>
+        </button>
       </div>
 
       {/* Unit List */}
@@ -328,6 +393,115 @@ export const CoordinatorManager: React.FC<CoordinatorManagerProps> = ({ category
                 className="flex-1 bg-red-600 hover:bg-red-700"
               >
                 Tambah Peringatan
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Assign Modal */}
+      {showBulkAssignModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !isSubmitting && setShowBulkAssignModal(false)}></div>
+          <div className="bg-white rounded-3xl w-full max-w-md relative animate-scaleUp overflow-hidden">
+            {/* Modal Header */}
+            <div className={`bg-gradient-to-r ${getCategoryColor()} p-5 text-white`}>
+              <h3 className="text-lg font-bold">Tambah Peringatan (Semua Unit)</h3>
+              <p className="text-sm opacity-90">{categoryUnits.length} unit akan menerima peringatan ini</p>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5">
+              {/* Flare Type Selection */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-3 uppercase">
+                  Pilih Tugasan <span className="text-red-500">*</span>
+                </label>
+                <div className="space-y-2">
+                  {(Object.keys(FLARE_LABELS) as FlareType[]).map(type => (
+                    <label
+                      key={type}
+                      className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                        selectedFlareTypes.includes(type)
+                          ? 'border-red-500 bg-red-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedFlareTypes.includes(type)}
+                        onChange={() => handleFlareTypeToggle(type)}
+                        className="w-5 h-5 text-red-600 rounded"
+                      />
+                      <span className="font-bold text-gray-700">{FLARE_LABELS[type]}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Week Number (for attendance/report) */}
+              {(selectedFlareTypes.includes('KEHADIRAN') || selectedFlareTypes.includes('LAPORAN_MINGGUAN')) && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 mb-2 uppercase">
+                    Minggu Ke-
+                  </label>
+                  <select
+                    value={weekNumber}
+                    onChange={e => setWeekNumber(parseInt(e.target.value))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl font-bold"
+                  >
+                    {Array.from({ length: 24 }, (_, i) => i + 1).map(num => (
+                      <option key={num} value={num}>Minggu {num}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Custom Message (optional) */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-2 uppercase">
+                  Mesej Tambahan (Pilihan)
+                </label>
+                <input
+                  type="text"
+                  value={customMessage}
+                  onChange={e => setCustomMessage(e.target.value)}
+                  placeholder="Cth: Sila hantar sebelum Jumaat"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl"
+                />
+              </div>
+
+              {/* Warning */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">⚠️</span>
+                  <div>
+                    <p className="font-bold text-amber-800 text-sm">Perhatian!</p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      Peringatan akan ditambah kepada SEMUA {categoryUnits.length} unit di bawah kategori {CATEGORY_LABELS[category]}.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-5 border-t border-gray-200 flex gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => setShowBulkAssignModal(false)}
+                disabled={isSubmitting}
+                className="flex-1"
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleBulkAssignFlares}
+                isLoading={isSubmitting}
+                disabled={selectedFlareTypes.length === 0}
+                className="flex-1 bg-red-600 hover:bg-red-700"
+              >
+                Tambah Untuk Semua
               </Button>
             </div>
           </div>

@@ -13,8 +13,9 @@ import { AttendanceForm } from './modules/AttendanceForm';
 import { AttendanceList } from './modules/AttendanceList';
 import { MeetingScheduleManager } from './modules/MeetingScheduleManager';
 import { CoordinatorManager } from './modules/CoordinatorManager';
+import { AdminDashboard } from './modules/AdminDashboard';
 import { ExternalTab } from './modules/ExternalTab';
-import { AppState, UserRole, UnitCategory } from './types';
+import { AppState, UserRole, UnitCategory, Unit } from './types';
 import { Button } from './components/ui/Button';
 import { Input } from './components/ui/Input';
 import { AttendanceRecord } from './services/firebaseService';
@@ -54,6 +55,8 @@ const App: React.FC = () => {
           'VIEW_PLAN': 'UNIT_DASHBOARD',
           'UNIT_DASHBOARD': 'HOME',
           'MEETING_SCHEDULE': 'HOME',
+          'COORDINATOR': 'HOME',
+          'ADMIN_DASHBOARD': 'HOME',
           'HOME': 'HOME'
         };
 
@@ -130,6 +133,17 @@ const App: React.FC = () => {
             {/* Admin Buttons */}
             {state.user.role === UserRole.SUPER_ADMIN && state.currentTab === 'INTERNAL' && (
               <div className="space-y-3 mb-4">
+                {/* Admin Dashboard Button */}
+                <button
+                  onClick={() => setState(prev => ({ ...prev, view: 'ADMIN_DASHBOARD' }))}
+                  className="w-full bg-gradient-to-r from-gray-800 to-gray-900 text-white px-4 py-3 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 font-bold text-sm"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                  Paparan Status Semua Unit
+                </button>
+
                 {/* Meeting Schedule Button */}
                 <button
                   onClick={() => setState(prev => ({ ...prev, view: 'MEETING_SCHEDULE' }))}
@@ -210,8 +224,25 @@ const App: React.FC = () => {
       );
     }
 
+    // Admin Dashboard (Admin only)
+    if (state.view === 'ADMIN_DASHBOARD') {
+      return (
+        <AnimatePresence mode="wait">
+          <motion.div key={state.view} initial="initial" animate="in" exit="out" variants={pageVariants} transition={{ duration: 0.2 }}>
+            <AdminDashboard
+              year={state.selectedYear}
+              onBack={() => setState(prev => ({ ...prev, view: 'HOME' }))}
+              onFlareUnit={(unit: Unit, category: UnitCategory) => {
+                setState(prev => ({ ...prev, view: 'COORDINATOR', coordinatorCategory: category }));
+              }}
+            />
+          </motion.div>
+        </AnimatePresence>
+      );
+    }
+
     // Guard clause for unit
-    if (!state.selectedUnit && state.view !== 'HOME' && state.view !== 'MEETING_SCHEDULE' && state.view !== 'COORDINATOR') {
+    if (!state.selectedUnit && state.view !== 'HOME' && state.view !== 'MEETING_SCHEDULE' && state.view !== 'COORDINATOR' && state.view !== 'ADMIN_DASHBOARD') {
         setState(prev => ({ ...prev, view: 'HOME' }));
         return null;
     }
