@@ -26,7 +26,8 @@ const App: React.FC = () => {
     view: 'HOME',
     selectedYear: 2026,
     selectedUnit: null,
-    user: { role: UserRole.GUEST }
+    user: { role: UserRole.GUEST },
+    authenticatedUnits: []
   });
 
   const [showAdminLogin, setShowAdminLogin] = useState(false);
@@ -34,6 +35,45 @@ const App: React.FC = () => {
 
   // Edit record state for attendance
   const [editAttendanceRecord, setEditAttendanceRecord] = useState<AttendanceRecord | null>(null);
+
+  // Load authenticated units from localStorage on mount
+  useEffect(() => {
+    const savedAuth = localStorage.getItem('authenticatedUnits');
+    if (savedAuth) {
+      try {
+        const units = JSON.parse(savedAuth);
+        setState(prev => ({ ...prev, authenticatedUnits: units }));
+      } catch (e) {
+        console.error('Failed to load authenticated units:', e);
+      }
+    }
+  }, []);
+
+  // Save authenticated units to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('authenticatedUnits', JSON.stringify(state.authenticatedUnits));
+  }, [state.authenticatedUnits]);
+
+  // Function to authenticate a unit
+  const authenticateUnit = (unitId: string) => {
+    setState(prev => ({
+      ...prev,
+      authenticatedUnits: [...prev.authenticatedUnits, unitId]
+    }));
+  };
+
+  // Function to logout from a unit
+  const logoutFromUnit = (unitId: string) => {
+    setState(prev => ({
+      ...prev,
+      authenticatedUnits: prev.authenticatedUnits.filter(id => id !== unitId)
+    }));
+  };
+
+  // Function to check if user is authenticated for a unit
+  const isAuthenticated = (unitId: string) => {
+    return state.authenticatedUnits.includes(unitId);
+  };
 
   // Browser back button handling
   useEffect(() => {
@@ -250,10 +290,43 @@ const App: React.FC = () => {
     return (
       <AnimatePresence mode="wait">
         <motion.div key={state.view} initial="initial" animate="in" exit="out" variants={pageVariants} transition={{ duration: 0.2 }}>
-          {state.view === 'UNIT_DASHBOARD' && state.selectedUnit && <UnitDashboard unit={state.selectedUnit} userRole={state.user.role} year={state.selectedYear} onNavigate={v => setState(prev => ({ ...prev, view: v }))} onBack={() => setState(prev => ({ ...prev, view: 'HOME' }))} />}
-          {state.view === 'VIEW_GALLERY' && state.selectedUnit && <GalleryManager unit={state.selectedUnit} year={state.selectedYear} userRole={state.user.role} onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))} />}
-          {state.view === 'FORM_REPORT' && state.selectedUnit && <WeeklyReportForm unit={state.selectedUnit} year={state.selectedYear} onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))} />}
-          {state.view === 'MANAGE_TEACHERS' && state.selectedUnit && <TeacherManager unit={state.selectedUnit} userRole={state.user.role} onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))} />}
+          {state.view === 'UNIT_DASHBOARD' && state.selectedUnit && (
+            <UnitDashboard
+              unit={state.selectedUnit}
+              userRole={state.user.role}
+              year={state.selectedYear}
+              onNavigate={v => setState(prev => ({ ...prev, view: v }))}
+              onBack={() => setState(prev => ({ ...prev, view: 'HOME' }))}
+              isAuthenticated={isAuthenticated(state.selectedUnit.id)}
+              onAuthenticate={() => authenticateUnit(state.selectedUnit!.id)}
+              onLogout={() => logoutFromUnit(state.selectedUnit!.id)}
+            />
+          )}
+          {state.view === 'VIEW_GALLERY' && state.selectedUnit && (
+            <GalleryManager
+              unit={state.selectedUnit}
+              year={state.selectedYear}
+              userRole={state.user.role}
+              onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))}
+              isAuthenticated={isAuthenticated(state.selectedUnit.id)}
+            />
+          )}
+          {state.view === 'FORM_REPORT' && state.selectedUnit && (
+            <WeeklyReportForm
+              unit={state.selectedUnit}
+              year={state.selectedYear}
+              onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))}
+              isAuthenticated={isAuthenticated(state.selectedUnit.id)}
+            />
+          )}
+          {state.view === 'MANAGE_TEACHERS' && state.selectedUnit && (
+            <TeacherManager
+              unit={state.selectedUnit}
+              userRole={state.user.role}
+              onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))}
+              isAuthenticated={isAuthenticated(state.selectedUnit.id)}
+            />
+          )}
           
           {/* VIEW_ATTENDANCE: List View */}
           {state.view === 'VIEW_ATTENDANCE' && state.selectedUnit && (
@@ -269,6 +342,7 @@ const App: React.FC = () => {
                   setEditAttendanceRecord(record);
                   setState(prev => ({ ...prev, view: 'FORM_ATTENDANCE' }));
                 }}
+                isAuthenticated={isAuthenticated(state.selectedUnit.id)}
              />
           )}
 
@@ -286,17 +360,19 @@ const App: React.FC = () => {
           )}
 
           {state.view === 'VIEW_ORG' && state.selectedUnit && (
-             <OrgChartManager 
-                unit={state.selectedUnit} 
-                year={state.selectedYear} 
-                onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))} 
+             <OrgChartManager
+                unit={state.selectedUnit}
+                year={state.selectedYear}
+                onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))}
+                isAuthenticated={isAuthenticated(state.selectedUnit.id)}
              />
           )}
           {state.view === 'VIEW_PLAN' && state.selectedUnit && (
-             <AnnualPlanManager 
-                unit={state.selectedUnit} 
-                year={state.selectedYear} 
-                onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))} 
+             <AnnualPlanManager
+                unit={state.selectedUnit}
+                year={state.selectedYear}
+                onBack={() => setState(prev => ({ ...prev, view: 'UNIT_DASHBOARD' }))}
+                isAuthenticated={isAuthenticated(state.selectedUnit.id)}
              />
           )}
         </motion.div>
