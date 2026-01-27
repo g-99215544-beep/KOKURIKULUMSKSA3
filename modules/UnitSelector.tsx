@@ -269,12 +269,6 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
                           <span className="font-extrabold text-xl text-gray-600">{unit.name.charAt(0)}</span>
                         )}
                       </div>
-                      {/* Compliance Badge */}
-                      {badgeCount > 0 && unitFlareCount === 0 && (
-                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-lg border-2 border-white">
-                          {badgeCount}
-                        </div>
-                      )}
                     </div>
                     <div>
                       <h4 className="font-bold text-gray-800 text-base group-hover:text-red-700 transition-colors line-clamp-1">
@@ -286,13 +280,6 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
                             <span className="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span>
                             <p className="text-xs text-red-600 font-bold">
                               {unitFlareCount} peringatan dari penyelaras
-                            </p>
-                          </>
-                        ) : badgeCount > 0 ? (
-                          <>
-                            <span className="w-2 h-2 rounded-full bg-orange-500 mr-2 animate-pulse"></span>
-                            <p className="text-xs text-orange-600 font-bold">
-                              {badgeCount} rekod belum lengkap
                             </p>
                           </>
                         ) : (
