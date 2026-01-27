@@ -275,8 +275,19 @@ export const UnitSelector: React.FC<UnitSelectorProps> = ({ selectedYear, onSele
                         {unit.name}
                       </h4>
                       <div className="flex items-center mt-1">
-                        <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
-                        <p className="text-xs text-gray-500 font-medium">Aktif {selectedYear}</p>
+                        {unitFlareCount > 0 ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></span>
+                            <p className="text-xs text-red-600 font-bold">
+                              {unitFlareCount} peringatan dari penyelaras
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
+                            <p className="text-xs text-gray-500 font-medium">Aktif {selectedYear}</p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
