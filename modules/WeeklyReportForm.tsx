@@ -47,10 +47,6 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
 
   // Edit Mode State
   const [editingReport, setEditingReport] = useState<WeeklyReportData | null>(null);
-  const [showEditPasswordModal, setShowEditPasswordModal] = useState(false);
-  const [editPassword, setEditPassword] = useState('');
-  const [editPasswordError, setEditPasswordError] = useState('');
-  const [pendingEditReport, setPendingEditReport] = useState<WeeklyReportData | null>(null);
 
   // Form Data State
   const [formData, setFormData] = useState({
@@ -201,61 +197,38 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
     setAttendanceWarning('');
   };
 
-  // Handle Edit Password Confirmation
-  const handleEditPasswordConfirm = () => {
-    const isValidPassword =
-      editPassword.trim().toUpperCase() === (unit.password || '').toUpperCase() ||
-      editPassword === 'admin';
-
-    if (!isValidPassword) {
-      setEditPasswordError('Kata laluan salah!');
-      return;
-    }
-
-    // Password valid, proceed to edit
-    if (pendingEditReport) {
-      setEditingReport(pendingEditReport);
-      // Pre-fill form data
-      setFormData({
-        perjumpaanKali: pendingEditReport.perjumpaanKali || '',
-        tarikh: pendingEditReport.tarikh || '',
-        hari: pendingEditReport.hari || '',
-        masa: pendingEditReport.masa || '1.10 - 2.10 petang',
-        tempat: pendingEditReport.tempat || '',
-        muridHadir: pendingEditReport.muridHadir || '',
-        jumlahMurid: pendingEditReport.jumlahMurid || '',
-        aktiviti1: pendingEditReport.aktiviti1 || '',
-        aktiviti2: pendingEditReport.aktiviti2 || '',
-        aktiviti3: pendingEditReport.aktiviti3 || '',
-        pikebm: pendingEditReport.pikebm || '',
-        refleksi: pendingEditReport.refleksi || ''
-      });
-      setSelectedTeachers(pendingEditReport.selectedTeachers || unit.teachers || []);
-      // Load existing image previews if available
-      if (pendingEditReport.imageUrls && pendingEditReport.imageUrls.length > 0) {
-        const previews = [...imagePreviews];
-        pendingEditReport.imageUrls.forEach((url, idx) => {
-          if (idx < 4) previews[idx] = url;
-        });
-        setImagePreviews(previews);
-      }
-      // Set selected attendance for edit mode (find matching attendance record)
-      const matchingAttendance = findAttendanceByWeek(pendingEditReport.perjumpaanKali || '');
-      setSelectedAttendance(matchingAttendance);
-      setAttendanceWarning('');
-      setShowFormModal(true);
-    }
-
-    setShowEditPasswordModal(false);
-    setEditPassword('');
-    setEditPasswordError('');
-    setPendingEditReport(null);
-  };
-
-  // Handle requesting edit (show password modal first)
+  // Handle requesting edit (direct access without password)
   const handleRequestEdit = (report: WeeklyReportData) => {
-    setPendingEditReport(report);
-    setShowEditPasswordModal(true);
+    setEditingReport(report);
+    // Pre-fill form data
+    setFormData({
+      perjumpaanKali: report.perjumpaanKali || '',
+      tarikh: report.tarikh || '',
+      hari: report.hari || '',
+      masa: report.masa || '1.10 - 2.10 petang',
+      tempat: report.tempat || '',
+      muridHadir: report.muridHadir || '',
+      jumlahMurid: report.jumlahMurid || '',
+      aktiviti1: report.aktiviti1 || '',
+      aktiviti2: report.aktiviti2 || '',
+      aktiviti3: report.aktiviti3 || '',
+      pikebm: report.pikebm || '',
+      refleksi: report.refleksi || ''
+    });
+    setSelectedTeachers(report.selectedTeachers || unit.teachers || []);
+    // Load existing image previews if available
+    if (report.imageUrls && report.imageUrls.length > 0) {
+      const previews = [...imagePreviews];
+      report.imageUrls.forEach((url, idx) => {
+        if (idx < 4) previews[idx] = url;
+      });
+      setImagePreviews(previews);
+    }
+    // Set selected attendance for edit mode (find matching attendance record)
+    const matchingAttendance = findAttendanceByWeek(report.perjumpaanKali || '');
+    setSelectedAttendance(matchingAttendance);
+    setAttendanceWarning('');
+    setShowFormModal(true);
   };
 
   // Handle Deletion
@@ -815,72 +788,6 @@ export const WeeklyReportForm: React.FC<WeeklyReportFormProps> = ({ unit, year, 
               )}
               <Button onClick={() => setSelectedReportToView(null)} className="flex-1">Tutup</Button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT PASSWORD CONFIRMATION MODAL */}
-      {showEditPasswordModal && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => {
-            setShowEditPasswordModal(false);
-            setEditPassword('');
-            setEditPasswordError('');
-            setPendingEditReport(null);
-          }}></div>
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 relative animate-scaleUp shadow-2xl z-10">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-                ✏️
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">Edit Laporan Mingguan?</h3>
-              <p className="text-sm text-gray-500 mt-2">
-                <span className="font-bold text-blue-600">{pendingEditReport?.perjumpaanKali}</span>
-              </p>
-              <p className="text-xs text-gray-400 mt-2">
-                Sila masukkan kata laluan unit untuk membolehkan pengeditan.
-              </p>
-            </div>
-
-            <form onSubmit={(e) => { e.preventDefault(); handleEditPasswordConfirm(); }} className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wider text-center">Kata Laluan Unit</p>
-                <Input
-                  type="password"
-                  placeholder="Masukkan Kata Laluan"
-                  value={editPassword}
-                  onChange={e => {
-                    setEditPassword(e.target.value);
-                    setEditPasswordError('');
-                  }}
-                  className="text-center font-bold tracking-widest text-lg"
-                  autoFocus
-                />
-                {editPasswordError && <p className="text-xs text-red-600 font-bold text-center mt-2 animate-pulse">{editPasswordError}</p>}
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setShowEditPasswordModal(false);
-                    setEditPassword('');
-                    setEditPasswordError('');
-                    setPendingEditReport(null);
-                  }}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200"
-                >
-                  Batal
-                </Button>
-                <Button
-                  type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 shadow-blue-200"
-                >
-                  Teruskan Edit
-                </Button>
-              </div>
-            </form>
           </div>
         </div>
       )}
